@@ -24,6 +24,8 @@ In the Google Cloud project, enable:
 2. YouTube Analytics API
 3. Google Sheets API
 
+Create an API key under **APIs & Services → Credentials** for public YouTube Data API reads. Restrict the key's API restrictions to **YouTube Data API v3**. The collector deliberately uses this key for comments and public video metadata because YouTube otherwise requires the broad `youtube.force-ssl` OAuth scope for comment listing. Private channel performance still uses read-only OAuth through the YouTube Analytics API.
+
 Configure the OAuth consent screen, then create an OAuth client with application type **Desktop app** and download its JSON file. For a personal automation, add every Google account that will authorize the app as a test user—including a separate business/Workspace account if it will own the Sheet. Be aware that refresh tokens for an OAuth app left in Testing can expire after seven days; move the consent screen to Production for a durable scheduled job. Workspace administrators can restrict external OAuth apps, so the business account may require administrator approval.
 
 ## One-time authorization
@@ -67,6 +69,7 @@ Create these repository **Actions secrets** under Settings → Secrets and varia
 | `GOOGLE_REFRESH_TOKEN` | Single-account mode only; printed by the default OAuth command |
 | `YOUTUBE_REFRESH_TOKEN` | Two-account mode; printed by `--account youtube` |
 | `SHEETS_REFRESH_TOKEN` | Two-account mode; printed by `--account sheets` |
+| `YOUTUBE_API_KEY` | Google Cloud API key restricted to YouTube Data API v3 |
 | `GEMINI_API_KEY` | Gemini API key from Google AI Studio |
 | `YOUTUBE_CHANNEL_ID` | The channel ID beginning with `UC` |
 | `GOOGLE_SHEET_ID` | The value between `/d/` and `/edit` in the Sheet URL |
@@ -108,6 +111,7 @@ The score is directional, not a promise of future views. After the queue has bee
 ## Reliability and privacy notes
 
 - YouTube list operations used here normally cost one quota unit per page; the collector scans all thread pages so it can notice replies added to old threads.
+- Public YouTube comments and video metadata use `YOUTUBE_API_KEY`; OAuth is reserved for read-only owner Analytics.
 - Complete replies are fetched when the thread's reported reply count exceeds its embedded reply sample.
 - API rate limits and transient server errors use exponential backoff. A failed Gemini batch is not written to `_Processed`, so the next run retries it.
 - The Sheet header shape is validated before writes. Unexpected columns stop the run instead of risking data loss. Add personal columns only after the existing columns, or use `Creator Notes`.

@@ -25,7 +25,9 @@ def main() -> None:
                                config.sheets_refresh_token, SHEETS_SCOPES)
     refresh_and_validate_scopes(youtube_creds, YOUTUBE_SCOPES)
     refresh_and_validate_scopes(sheets_creds, SHEETS_SCOPES)
-    data_api = build("youtube", "v3", credentials=youtube_creds, cache_discovery=False)
+    # Comment and video reads are public. Using an API key here avoids YouTube's
+    # disproportionately broad youtube.force-ssl OAuth scope for comment listing.
+    data_api = build("youtube", "v3", developerKey=config.youtube_api_key, cache_discovery=False)
     analytics_api = build("youtubeAnalytics", "v2", credentials=youtube_creds, cache_discovery=False)
     sheets_api = build("sheets", "v4", credentials=sheets_creds, cache_discovery=False)
     pipeline = Pipeline(

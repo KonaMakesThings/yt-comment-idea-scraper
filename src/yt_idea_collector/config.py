@@ -8,6 +8,7 @@ from datetime import date
 REQUIRED = (
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
+    "YOUTUBE_API_KEY",
     "GEMINI_API_KEY",
     "YOUTUBE_CHANNEL_ID",
     "GOOGLE_SHEET_ID",
@@ -20,6 +21,7 @@ class Config:
     google_client_secret: str
     youtube_refresh_token: str
     sheets_refresh_token: str
+    youtube_api_key: str
     gemini_api_key: str
     youtube_channel_id: str
     google_sheet_id: str
@@ -52,6 +54,7 @@ class Config:
             google_client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
             youtube_refresh_token=youtube_token,
             sheets_refresh_token=sheets_token,
+            youtube_api_key=os.environ["YOUTUBE_API_KEY"],
             gemini_api_key=os.environ["GEMINI_API_KEY"],
             youtube_channel_id=os.environ["YOUTUBE_CHANNEL_ID"],
             google_sheet_id=os.environ["GOOGLE_SHEET_ID"],

@@ -24,6 +24,7 @@ def test_config_parses_overrides(monkeypatch):
     assert config.backfill_start.isoformat() == "2025-12-01"
     assert config.youtube_refresh_token == "legacy-token"
     assert config.sheets_refresh_token == "legacy-token"
+    assert config.youtube_api_key == "youtube_api_key"
 
 
 def test_config_supports_separate_youtube_and_sheets_accounts(monkeypatch):
