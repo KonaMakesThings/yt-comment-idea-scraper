@@ -42,6 +42,19 @@ class MemorySheet(SheetStore):
         del self.idea_rows[row_number - 2]
 
 
+class HeaderMemorySheet(SheetStore):
+    def __init__(self, current):
+        super().__init__(None, "sheet")
+        self.current = current
+        self.updates = []
+
+    def _values(self, range_):
+        return self.current
+
+    def _update(self, range_, values):
+        self.updates.append((range_, values))
+
+
 def objects(text="Try Overwatch"):
     now = datetime(2026, 1, 2, tzinfo=timezone.utc)
     comment = Comment("c1", "v1", None, "Viewer", "viewer", text, now, now, 4)
@@ -76,3 +89,19 @@ def test_comment_that_no_longer_qualifies_is_removed_but_deduped():
     assert len(store.idea_rows) == 0
     assert len(store.processed_rows) == 1
     assert store.processed_rows[0][2] == "not_idea"
+
+
+def test_managed_header_row_is_repaired_without_rewriting_data_rows():
+    store = HeaderMemorySheet([["Custom heading", *IDEA_HEADERS[1:]]])
+
+    store._ensure_headers("Ideas", IDEA_HEADERS)
+
+    assert store.updates == [("'Ideas'!A1", [IDEA_HEADERS])]
+
+
+def test_matching_header_row_is_left_untouched():
+    store = HeaderMemorySheet([IDEA_HEADERS.copy()])
+
+    store._ensure_headers("Ideas", IDEA_HEADERS)
+
+    assert store.updates == []

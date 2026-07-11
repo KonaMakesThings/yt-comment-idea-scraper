@@ -60,11 +60,16 @@ class SheetStore:
             ).execute())
         for title, headers in (("Ideas", IDEA_HEADERS), ("_Processed", PROCESSED_HEADERS),
                                ("_VideoBaseline", BASELINE_HEADERS), ("_RunLog", RUN_HEADERS)):
-            current = self._values(f"'{title}'!1:1")
-            if not current:
-                self._update(f"'{title}'!A1", [headers])
-            elif current[0][:len(headers)] != headers:
-                raise ValueError(f"Unexpected columns in {title}; refusing to overwrite user data")
+            self._ensure_headers(title, headers)
+
+    def _ensure_headers(self, title: str, headers: list[str]) -> None:
+        """Restore the collector-owned header row without touching sheet data or formatting."""
+        current = self._values(f"'{title}'!1:1")
+        if not current or current[0][:len(headers)] != headers:
+            # Row 1 is part of the collector's data interface. Updating A1 through
+            # the final header cell preserves column widths, colors, filters, and
+            # every data row while recovering from renamed or damaged headers.
+            self._update(f"'{title}'!A1", [headers])
 
     def _values(self, range_: str) -> list[list[str]]:
         response = with_retry(lambda: self.service.spreadsheets().values().get(
