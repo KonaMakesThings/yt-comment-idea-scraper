@@ -38,6 +38,14 @@ def test_config_supports_separate_youtube_and_sheets_accounts(monkeypatch):
     assert config.sheets_refresh_token == "business-account"
 
 
+def test_config_migrates_retired_gemini_model(monkeypatch):
+    for name in REQUIRED:
+        monkeypatch.setenv(name, "x")
+    monkeypatch.setenv("GOOGLE_REFRESH_TOKEN", "x")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    assert Config.from_env().gemini_model == "gemini-3.1-flash-lite"
+
+
 def test_config_rejects_unsafe_batch(monkeypatch):
     for name in REQUIRED:
         monkeypatch.setenv(name, "x")

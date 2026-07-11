@@ -1,6 +1,6 @@
 # YouTube Comment Idea Collector
 
-This project scans published comments and viewer replies across a YouTube channel, uses Gemini 2.5 Flash-Lite to find broad video-idea signals, scores them against the channel's own long-form performance, and maintains a review queue in Google Sheets.
+This project scans published comments and viewer replies across a YouTube channel, uses Gemini 3.1 Flash-Lite to find broad video-idea signals, scores them against the channel's own long-form performance, and maintains a review queue in Google Sheets.
 
 It uses official Google APIs—no HTML scraping. The first run considers comments posted on or after **December 1, 2025**. Subsequent runs skip unchanged comments and revisit edited ones. A scheduled GitHub Actions workflow runs every day at 13:00 UTC.
 
@@ -78,7 +78,7 @@ Optional Actions variables:
 
 | Variable | Default | Purpose |
 |---|---:|---|
-| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Stable Gemini model name |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Stable Gemini model name |
 | `GEMINI_BATCH_SIZE` | `20` | Comments/videos per model call; valid range 1–50 |
 
 Push the repository, open Actions, select **Collect YouTube video ideas**, and use **Run workflow**. The first normal run initializes the four Sheet tabs and performs the backfill. Later runs are incremental. Manual dry runs are read-only and require the Sheet to have been initialized by a previous normal run.

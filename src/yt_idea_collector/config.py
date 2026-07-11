@@ -13,6 +13,12 @@ REQUIRED = (
     "YOUTUBE_CHANNEL_ID",
     "GOOGLE_SHEET_ID",
 )
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+RETIRED_GEMINI_MODELS = {
+    "gemini-2.5-flash-lite": DEFAULT_GEMINI_MODEL,
+    "gemini-2.5-flash-lite-preview-09-2025": DEFAULT_GEMINI_MODEL,
+    "gemini-3.1-flash-lite-preview": DEFAULT_GEMINI_MODEL,
+}
 
 
 @dataclass(frozen=True)
@@ -25,7 +31,7 @@ class Config:
     gemini_api_key: str
     youtube_channel_id: str
     google_sheet_id: str
-    gemini_model: str = "gemini-2.5-flash-lite"
+    gemini_model: str = DEFAULT_GEMINI_MODEL
     batch_size: int = 20
     backfill_start: date = date(2025, 12, 1)
     dry_run: bool = False
@@ -49,6 +55,8 @@ class Config:
         if not 1 <= batch_size <= 50:
             raise ValueError("GEMINI_BATCH_SIZE must be between 1 and 50")
         cutoff = date.fromisoformat(os.getenv("BACKFILL_START", "2025-12-01"))
+        requested_model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        model = RETIRED_GEMINI_MODELS.get(requested_model, requested_model)
         return cls(
             google_client_id=os.environ["GOOGLE_CLIENT_ID"],
             google_client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
@@ -58,7 +66,7 @@ class Config:
             gemini_api_key=os.environ["GEMINI_API_KEY"],
             youtube_channel_id=os.environ["YOUTUBE_CHANNEL_ID"],
             google_sheet_id=os.environ["GOOGLE_SHEET_ID"],
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            gemini_model=model,
             batch_size=batch_size,
             backfill_start=cutoff,
             dry_run=dry_run,
