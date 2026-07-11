@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+import argparse
+import json
+
+from google import genai
+from googleapiclient.discovery import build
+
+from .auth import credentials, refresh_and_validate_scopes
+from .config import Config
+from .gemini import GeminiClassifier
+from .pipeline import Pipeline
+from .sheets import SheetStore
+from .youtube import YouTubeClient
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Collect video ideas from YouTube comments")
+    parser.add_argument("--dry-run", action="store_true", help="Read and classify without writing to Sheets")
+    args = parser.parse_args()
+    config = Config.from_env(dry_run=args.dry_run)
+    creds = credentials(config.google_client_id, config.google_client_secret, config.google_refresh_token)
+    refresh_and_validate_scopes(creds)
+    data_api = build("youtube", "v3", credentials=creds, cache_discovery=False)
+    analytics_api = build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False)
+    sheets_api = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    pipeline = Pipeline(
+        YouTubeClient(data_api, analytics_api, config.youtube_channel_id),
+        GeminiClassifier(genai.Client(api_key=config.gemini_api_key), config.gemini_model),
+        SheetStore(sheets_api, config.google_sheet_id),
+        channel_id=config.youtube_channel_id, batch_size=config.batch_size,
+        backfill_start=config.backfill_start, dry_run=config.dry_run,
+    )
+    print(json.dumps(pipeline.run().__dict__, indent=2))
+
+
+if __name__ == "__main__":
+    main()

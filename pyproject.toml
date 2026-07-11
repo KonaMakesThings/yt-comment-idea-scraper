@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youtube-comment-idea-collector"
+version = "0.1.0"
+description = "Turn actionable YouTube comments into a scored Google Sheets idea queue."
+requires-python = ">=3.11"
+dependencies = [
+  "google-api-python-client>=2.160,<3",
+  "google-auth>=2.38,<3",
+  "google-auth-oauthlib>=1.2,<2",
+  "google-genai>=1.14,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9", "pytest-cov>=6,<7"]
+
+[project.scripts]
+yt-idea-collector = "yt_idea_collector.cli:main"
+yt-idea-oauth = "yt_idea_collector.oauth_setup:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+

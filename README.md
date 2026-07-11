@@ -1,0 +1,104 @@
+# YouTube Comment Idea Collector
+
+This project scans published comments and viewer replies across a YouTube channel, uses Gemini 2.5 Flash-Lite to find broad video-idea signals, scores them against the channel's own long-form performance, and maintains a review queue in Google Sheets.
+
+It uses official Google APIs—no HTML scraping. The first run considers comments posted on or after **December 1, 2025**. Subsequent runs skip unchanged comments and revisit edited ones. A scheduled GitHub Actions workflow runs every day at 13:00 UTC.
+
+## What counts as an idea
+
+The prompt is intentionally recall-oriented. It includes direct requests, “have you played…” questions, recommendations, detailed loadouts or strategies, suggested experiments and comparisons, and other comments with an actionable creative seed. Gemini returns a confidence and category so borderline ideas remain easy to review.
+
+The visible `Ideas` tab contains the editable review status and notes, deterministic 1–10 opportunity score and rationale, normalized topic, source links, author and timestamp, raw comment, and classifier metadata. Hidden tabs contain processed IDs, the video performance baseline, and run history. Rejected comments are represented only by ID, update time, and outcome—raw rejected text is not archived.
+
+## Prerequisites
+
+- A GitHub repository (private is fine) with Actions enabled
+- A Google Cloud project
+- A Google Sheet you own
+- A free Gemini API key from Google AI Studio
+- Python 3.11+ for the one-time OAuth setup
+
+In the Google Cloud project, enable:
+
+1. YouTube Data API v3
+2. YouTube Analytics API
+3. Google Sheets API
+
+Configure the OAuth consent screen, then create an OAuth client with application type **Desktop app** and download its JSON file. For a personal automation, add your Google account as a test user while configuring the consent screen. Be aware that refresh tokens for an OAuth app left in Testing can expire after seven days; move the consent screen to Production for a durable scheduled job. The app only requests read-only YouTube/Analytics access and Sheet access.
+
+## One-time authorization
+
+Create a virtual environment and install the project:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e .
+yt-idea-oauth .\client_secret.json
+```
+
+A browser opens for authorization. The command prints `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REFRESH_TOKEN`. Treat all three as secrets; do not commit the downloaded JSON or printed values.
+
+If GitHub reports `insufficient authentication scopes`, the stored refresh token was issued without one or more required permissions. Run the OAuth command again, approve every requested permission, and replace all three `GOOGLE_*` GitHub secrets with the newly printed values. Changing scopes in the source code cannot add permissions to an existing refresh token.
+
+## GitHub configuration
+
+Create these repository **Actions secrets** under Settings → Secrets and variables → Actions:
+
+| Secret | Value |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Printed by `yt-idea-oauth` |
+| `GOOGLE_CLIENT_SECRET` | Printed by `yt-idea-oauth` |
+| `GOOGLE_REFRESH_TOKEN` | Printed by `yt-idea-oauth` |
+| `GEMINI_API_KEY` | Gemini API key from Google AI Studio |
+| `YOUTUBE_CHANNEL_ID` | The channel ID beginning with `UC` |
+| `GOOGLE_SHEET_ID` | The value between `/d/` and `/edit` in the Sheet URL |
+
+Optional Actions variables:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Stable Gemini model name |
+| `GEMINI_BATCH_SIZE` | `20` | Comments/videos per model call; valid range 1–50 |
+
+Push the repository, open Actions, select **Collect YouTube video ideas**, and use **Run workflow**. The first normal run initializes the four Sheet tabs and performs the backfill. Later runs are incremental. Manual dry runs are read-only and require the Sheet to have been initialized by a previous normal run.
+
+## Local execution
+
+Set the same six required environment variables, then run:
+
+```powershell
+yt-idea-collector
+yt-idea-collector --dry-run
+```
+
+`BACKFILL_START` can override the default `2025-12-01`. A dry run retrieves data, rebuilds the in-memory baseline, and calls Gemini, but does not initialize or write to the Sheet.
+
+## How scoring works
+
+The collector looks at non-live uploads from the past 24 months, excludes videos three minutes or shorter as a conservative public-API Shorts heuristic (the YouTube Data API has no explicit Shorts flag), and waits until a video is at least 30 days old. For each included video, the read-only Analytics API supplies its complete first 30 days of views, watch time, average viewed percentage, likes, comments, shares, and subscriber gains.
+
+Each historical video gets a percentile-based performance index. An idea's score is:
+
+- 75% average performance of videos with the same normalized topic
+- 15% the ten most recent long-form videos
+- 10% classifier confidence and comment likes
+
+At least three topic matches are required. Otherwise the system uses the overall long-form baseline, marks confidence `Low`, and explains the fallback. Gemini writes the topic and idea summary, but it does not choose the numeric score.
+
+The score is directional, not a promise of future views. After the queue has been useful for a while, competitor benchmarking can be added as a separate calibrated signal.
+
+## Reliability and privacy notes
+
+- YouTube list operations used here normally cost one quota unit per page; the collector scans all thread pages so it can notice replies added to old threads.
+- Complete replies are fetched when the thread's reported reply count exceeds its embedded reply sample.
+- API rate limits and transient server errors use exponential backoff. A failed Gemini batch is not written to `_Processed`, so the next run retries it.
+- The Sheet header shape is validated before writes. Unexpected columns stop the run instead of risking data loss. Add personal columns only after the existing columns, or use `Creator Notes`.
+- Gemini's free tier may use submitted content to improve Google products. This project submits public comment text and source-video titles.
+
+## Development
+
+```powershell
+pip install -e ".[dev]"
+pytest
+```
