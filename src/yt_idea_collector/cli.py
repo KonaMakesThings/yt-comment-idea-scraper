@@ -35,7 +35,7 @@ def main() -> None:
         GeminiClassifier(genai.Client(api_key=config.gemini_api_key), config.gemini_model),
         SheetStore(sheets_api, config.google_sheet_id),
         channel_id=config.youtube_channel_id, batch_size=config.batch_size,
-        backfill_start=config.backfill_start, dry_run=config.dry_run,
+        backfill_start=config.backfill_start, dry_run=config.dry_run, reprocess=config.reprocess,
     )
     print(json.dumps(pipeline.run().__dict__, indent=2))
 

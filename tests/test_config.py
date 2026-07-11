@@ -53,3 +53,11 @@ def test_config_rejects_unsafe_batch(monkeypatch):
     monkeypatch.setenv("GEMINI_BATCH_SIZE", "51")
     with pytest.raises(ValueError, match="between 1 and 50"):
         Config.from_env()
+
+
+def test_config_parses_reprocess_flag(monkeypatch):
+    for name in REQUIRED:
+        monkeypatch.setenv(name, "x")
+    monkeypatch.setenv("GOOGLE_REFRESH_TOKEN", "x")
+    monkeypatch.setenv("REPROCESS_COMMENTS", "true")
+    assert Config.from_env().reprocess is True

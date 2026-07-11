@@ -35,6 +35,7 @@ class Config:
     batch_size: int = 20
     backfill_start: date = date(2025, 12, 1)
     dry_run: bool = False
+    reprocess: bool = False
 
     @classmethod
     def from_env(cls, *, dry_run: bool = False) -> "Config":
@@ -70,4 +71,5 @@ class Config:
             batch_size=batch_size,
             backfill_start=cutoff,
             dry_run=dry_run,
+            reprocess=os.getenv("REPROCESS_COMMENTS", "false").strip().lower() in {"1", "true", "yes", "on"},
         )

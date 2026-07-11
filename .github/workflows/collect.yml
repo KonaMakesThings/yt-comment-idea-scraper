@@ -41,5 +41,6 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
           GEMINI_BATCH_SIZE: ${{ vars.GEMINI_BATCH_SIZE || '20' }}
+          REPROCESS_COMMENTS: ${{ vars.REPROCESS_COMMENTS || 'false' }}
           BACKFILL_START: "2025-12-01"
         run: yt-idea-collector ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -20,7 +20,8 @@ class RunSummary:
 
 class Pipeline:
     def __init__(self, youtube: YouTubeClient, classifier: GeminiClassifier, store: SheetStore,
-                 *, channel_id: str, batch_size: int, backfill_start, dry_run: bool = False):
+                 *, channel_id: str, batch_size: int, backfill_start, dry_run: bool = False,
+                 reprocess: bool = False):
         self.youtube = youtube
         self.classifier = classifier
         self.store = store
@@ -28,6 +29,7 @@ class Pipeline:
         self.batch_size = batch_size
         self.backfill_start = backfill_start
         self.dry_run = dry_run
+        self.reprocess = reprocess
 
     def run(self) -> RunSummary:
         # A dry run is deliberately read-only. It therefore expects a sheet that has
@@ -40,7 +42,7 @@ class Pipeline:
         cutoff = datetime.combine(self.backfill_start, time.min, tzinfo=timezone.utc)
         eligible = [c for c in comments if c.published_at >= cutoff and
                     c.author_channel_id != self.channel_id and
-                    processed.get(c.id, (None,))[0] != c.updated_at.isoformat()]
+                    (self.reprocess or processed.get(c.id, (None,))[0] != c.updated_at.isoformat())]
         video_ids = sorted({c.video_id for c in eligible if c.video_id})
         videos = self.youtube.videos(video_ids)
         missing_video_ids = {c.video_id for c in eligible if not c.video_id or c.video_id not in videos}
@@ -64,7 +66,9 @@ class Pipeline:
                     score = score_idea(result, comment, baselines) if result.is_idea else None
                     ideas += int(result.is_idea)
                     if not self.dry_run:
-                        self.store.write_result(comment, result, score, videos[comment.video_id], existing_ideas.get(comment.id))
+                        existing = (self.store.ideas().get(comment.id) if self.reprocess
+                                    else existing_ideas.get(comment.id))
+                        self.store.write_result(comment, result, score, videos[comment.video_id], existing)
             except Exception as exc:
                 errors += len(batch)
                 error_messages.append(f"Batch starting {batch[0].id}: {type(exc).__name__}: {exc}")

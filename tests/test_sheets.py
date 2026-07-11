@@ -37,6 +37,10 @@ class MemorySheet(SheetStore):
         else:
             raise AssertionError(range_)
 
+    def _delete_row(self, title, row_number):
+        assert title == "Ideas"
+        del self.idea_rows[row_number - 2]
+
 
 def objects(text="Try Overwatch"):
     now = datetime(2026, 1, 2, tzinfo=timezone.utc)
@@ -63,11 +67,12 @@ def test_new_then_edited_comment_updates_without_duplicate():
     assert store.idea_rows[0][IDEA_HEADERS.index("Raw Comment")] == "Please play Overwatch 2"
 
 
-def test_comment_that_no_longer_qualifies_is_retained_and_flagged():
+def test_comment_that_no_longer_qualifies_is_removed_but_deduped():
     store = MemorySheet()
     comment, result, score, video = objects()
     store.write_result(comment, result, score, video, None)
     no_idea = Classification("c1", False, "High", "not_an_idea", "", "", "Not actionable")
     store.write_result(comment, no_idea, None, video, store.ideas()["c1"])
-    assert store.idea_rows[0][0] == "No longer qualifies"
-    assert len(store.idea_rows) == 1
+    assert len(store.idea_rows) == 0
+    assert len(store.processed_rows) == 1
+    assert store.processed_rows[0][2] == "not_idea"

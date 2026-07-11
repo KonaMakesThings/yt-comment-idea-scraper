@@ -80,8 +80,13 @@ Optional Actions variables:
 |---|---:|---|
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Stable Gemini model name |
 | `GEMINI_BATCH_SIZE` | `20` | Comments/videos per model call; valid range 1–50 |
+| `REPROCESS_COMMENTS` | `false` | Set `true` for one manual run to reclassify all comments since `BACKFILL_START` |
 
 Push the repository, open Actions, select **Collect YouTube video ideas**, and use **Run workflow**. The first normal run initializes the four Sheet tabs and performs the backfill. Later runs are incremental. Manual dry runs are read-only and require the Sheet to have been initialized by a previous normal run.
+
+### Cleaning an over-broad first pass
+
+The classifier is intentionally conservative about what counts as a concrete video idea. If an older run put social chatter, naming questions, or requests to play together into `Ideas`, create the Actions variable `REPROCESS_COMMENTS=true`, run the workflow once normally (not dry-run), then remove the variable or set it back to `false`. The run reclassifies the existing comment history and deletes rows that no longer qualify while retaining their IDs in `_Processed` so they do not return on the next daily run. Direct topic questions such as “have you played X?” and concrete weapon/loadout recommendations remain eligible.
 
 ## Local execution
 

@@ -83,6 +83,26 @@ class SheetStore:
             body={"values": values},
         ).execute())
 
+    def _sheet_id(self, title: str) -> int:
+        meta = with_retry(lambda: self.service.spreadsheets().get(
+            spreadsheetId=self.id, fields="sheets(properties(sheetId,title))",
+        ).execute())
+        for sheet in meta.get("sheets", []):
+            properties = sheet["properties"]
+            if properties["title"] == title:
+                return properties["sheetId"]
+        raise ValueError(f"Sheet tab not found: {title}")
+
+    def _delete_row(self, title: str, row_number: int) -> None:
+        sheet_id = self._sheet_id(title)
+        with_retry(lambda: self.service.spreadsheets().batchUpdate(
+            spreadsheetId=self.id,
+            body={"requests": [{"deleteDimension": {"range": {
+                "sheetId": sheet_id, "dimension": "ROWS",
+                "startIndex": row_number - 1, "endIndex": row_number,
+            }}}]},
+        ).execute())
+
     def processed(self) -> dict[str, tuple[str, str, str]]:
         rows = self._values("'_Processed'!A2:D")
         return {row[0]: tuple((row + ["", "", ""])[1:4]) for row in rows if row}
@@ -115,10 +135,10 @@ class SheetStore:
                 self._append("'Ideas'!A:R", [row])
                 idea_row_id = "created"
         elif existing_idea:
-            old = existing_idea[1]
-            old[0] = "No longer qualifies"
-            old[16] = now
-            self._update(f"'Ideas'!A{existing_idea[0]}", [old])
+            # A stricter reclassification means this no longer belongs in the
+            # visible review queue. Keep its ID in _Processed for deduplication,
+            # but remove the stale visible row entirely.
+            self._delete_row("Ideas", existing_idea[0])
         state = [comment.id, comment.updated_at.isoformat(), "idea" if result.is_idea else "not_idea", idea_row_id]
         processed = self.processed()
         if comment.id in processed:
