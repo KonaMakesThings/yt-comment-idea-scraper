@@ -86,7 +86,7 @@ Push the repository, open Actions, select **Collect YouTube video ideas**, and u
 
 ### Cleaning an over-broad first pass
 
-The classifier is intentionally conservative about what counts as a concrete video idea. If an older run put social chatter, naming questions, or requests to play together into `Ideas`, create the Actions variable `REPROCESS_COMMENTS=true`, run the workflow once normally (not dry-run), then remove the variable or set it back to `false`. The run reclassifies the existing comment history and deletes rows that no longer qualify while retaining their IDs in `_Processed` so they do not return on the next daily run. Direct topic questions such as “have you played X?” and concrete weapon/loadout recommendations remain eligible.
+The classifier is intentionally conservative about what counts as a concrete video idea. If an older run put social chatter, naming questions, or requests to play together into `Ideas`, manually run the workflow with the **Reprocess all comments** option enabled (and **Dry run** disabled). The run reclassifies the existing comment history and deletes rows that no longer qualify while retaining their IDs in `_Processed` so they do not return on the next daily run. Direct topic questions such as “have you played X?” and concrete weapon/loadout recommendations remain eligible. For scheduled runs, the optional `REPROCESS_COMMENTS` Actions variable can be used instead, but turn it back off immediately after the cleanup.
 
 ## Local execution
 
