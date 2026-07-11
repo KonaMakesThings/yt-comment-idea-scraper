@@ -47,3 +47,17 @@ def test_missing_result_rejects_entire_batch():
     with pytest.raises(ValueError, match="exactly one"):
         GeminiClassifier(Client([]), "model").classify([make_comment()], {"v1": "A video"})
 
+
+def test_classification_prompt_uses_concrete_creator_directed_examples():
+    output = [{"comment_id": "c1", "is_idea": False, "confidence": "High",
+               "idea_type": "not_an_idea", "summary": "", "topic": "", "rationale": "Not actionable"}]
+    client = Client(output)
+    GeminiClassifier(client, "model").classify([make_comment("example")], {"v1": "A video"})
+    prompt = client.models.calls[0]["contents"]
+
+    assert "creator-directed intent" in prompt
+    assert "speculative viewer invention" in prompt
+    assert "Request for more servers in Asia" in prompt
+    assert "Request to customize Chemist to look like Walter White" in prompt
+    assert "Request to play Taco Bandits on Xbox" in prompt
+    assert "Request for more Splatoon content" in prompt
