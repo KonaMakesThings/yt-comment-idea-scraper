@@ -8,7 +8,6 @@ from datetime import date
 REQUIRED = (
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_REFRESH_TOKEN",
     "GEMINI_API_KEY",
     "YOUTUBE_CHANNEL_ID",
     "GOOGLE_SHEET_ID",
@@ -19,7 +18,8 @@ REQUIRED = (
 class Config:
     google_client_id: str
     google_client_secret: str
-    google_refresh_token: str
+    youtube_refresh_token: str
+    sheets_refresh_token: str
     gemini_api_key: str
     youtube_channel_id: str
     google_sheet_id: str
@@ -31,6 +31,13 @@ class Config:
     @classmethod
     def from_env(cls, *, dry_run: bool = False) -> "Config":
         missing = [name for name in REQUIRED if not os.getenv(name)]
+        legacy_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+        youtube_token = os.getenv("YOUTUBE_REFRESH_TOKEN") or legacy_token
+        sheets_token = os.getenv("SHEETS_REFRESH_TOKEN") or legacy_token
+        if not youtube_token:
+            missing.append("YOUTUBE_REFRESH_TOKEN (or GOOGLE_REFRESH_TOKEN)")
+        if not sheets_token:
+            missing.append("SHEETS_REFRESH_TOKEN (or GOOGLE_REFRESH_TOKEN)")
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
         try:
@@ -43,7 +50,8 @@ class Config:
         return cls(
             google_client_id=os.environ["GOOGLE_CLIENT_ID"],
             google_client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
-            google_refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+            youtube_refresh_token=youtube_token,
+            sheets_refresh_token=sheets_token,
             gemini_api_key=os.environ["GEMINI_API_KEY"],
             youtube_channel_id=os.environ["YOUTUBE_CHANNEL_ID"],
             google_sheet_id=os.environ["GOOGLE_SHEET_ID"],
@@ -52,4 +60,3 @@ class Config:
             backfill_start=cutoff,
             dry_run=dry_run,
         )
-

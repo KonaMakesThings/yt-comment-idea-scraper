@@ -7,21 +7,25 @@ from urllib.request import Request as UrlRequest, urlopen
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-SCOPES = (
+YOUTUBE_SCOPES = (
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
+)
+SHEETS_SCOPES = (
     "https://www.googleapis.com/auth/spreadsheets",
 )
+SCOPES = YOUTUBE_SCOPES + SHEETS_SCOPES
 
 
-def credentials(client_id: str, client_secret: str, refresh_token: str) -> Credentials:
+def credentials(client_id: str, client_secret: str, refresh_token: str,
+                scopes: tuple[str, ...] = SCOPES) -> Credentials:
     return Credentials(
         token=None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
-        scopes=SCOPES,
+        scopes=scopes,
     )
 
 
@@ -37,9 +41,9 @@ def access_token_scopes(access_token: str) -> set[str]:
     return set(payload.get("scope", "").split())
 
 
-def validate_access_token_scopes(access_token: str) -> None:
+def validate_access_token_scopes(access_token: str, required_scopes: tuple[str, ...] = SCOPES) -> None:
     granted = access_token_scopes(access_token)
-    missing = set(SCOPES) - granted
+    missing = set(required_scopes) - granted
     if missing:
         formatted = "\n  - ".join(sorted(missing))
         raise RuntimeError(
@@ -50,7 +54,8 @@ def validate_access_token_scopes(access_token: str) -> None:
         )
 
 
-def refresh_and_validate_scopes(creds: Credentials) -> None:
+def refresh_and_validate_scopes(creds: Credentials,
+                                required_scopes: tuple[str, ...] = SCOPES) -> None:
     """Refresh once and turn incomplete OAuth consent into an actionable error."""
     creds.refresh(Request())
-    validate_access_token_scopes(creds.token)
+    validate_access_token_scopes(creds.token, required_scopes)

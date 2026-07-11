@@ -24,7 +24,7 @@ In the Google Cloud project, enable:
 2. YouTube Analytics API
 3. Google Sheets API
 
-Configure the OAuth consent screen, then create an OAuth client with application type **Desktop app** and download its JSON file. For a personal automation, add your Google account as a test user while configuring the consent screen. Be aware that refresh tokens for an OAuth app left in Testing can expire after seven days; move the consent screen to Production for a durable scheduled job. The app only requests read-only YouTube/Analytics access and Sheet access.
+Configure the OAuth consent screen, then create an OAuth client with application type **Desktop app** and download its JSON file. For a personal automation, add every Google account that will authorize the app as a test user—including a separate business/Workspace account if it will own the Sheet. Be aware that refresh tokens for an OAuth app left in Testing can expire after seven days; move the consent screen to Production for a durable scheduled job. Workspace administrators can restrict external OAuth apps, so the business account may require administrator approval.
 
 ## One-time authorization
 
@@ -37,7 +37,22 @@ pip install -e .
 yt-idea-oauth .\client_secret.json
 ```
 
-A browser opens for authorization. The command prints `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REFRESH_TOKEN`. Treat all three as secrets; do not commit the downloaded JSON or printed values.
+A browser opens for authorization. The command prints `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REFRESH_TOKEN`. Treat all three as secrets; do not commit the downloaded JSON or printed values. This default mode uses one Google account for both YouTube and Sheets.
+
+### Separate YouTube and business Sheet accounts
+
+Use the same Desktop OAuth client JSON for both authorizations, but run setup twice:
+
+```powershell
+yt-idea-oauth .\client_secret.json --account youtube
+yt-idea-oauth .\client_secret.json --account sheets
+```
+
+The first browser flow forces the account picker: select the Google account that owns the YouTube channel. It requests only YouTube Data and Analytics read access and prints `YOUTUBE_REFRESH_TOKEN`.
+
+The second flow forces the account picker again: select the business Google account that owns or can edit the destination Sheet. It requests only Google Sheets access and prints `SHEETS_REFRESH_TOKEN`.
+
+Both runs print the same `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Add the two account-specific refresh tokens to GitHub and remove the legacy `GOOGLE_REFRESH_TOKEN` secret to avoid confusion. The Sheet ID must identify a Sheet accessible to the business account used in the second flow.
 
 If GitHub reports `insufficient authentication scopes`, the stored refresh token was issued without one or more required permissions. Remove the app from [Google Account connections](https://myaccount.google.com/connections), run the OAuth command again, explicitly select every requested permission, and replace all three `GOOGLE_*` GitHub secrets with the newly printed values. The setup command verifies the actual access-token scopes before printing credentials. Changing scopes in source code cannot add permissions to an existing refresh token.
 
@@ -49,7 +64,9 @@ Create these repository **Actions secrets** under Settings → Secrets and varia
 |---|---|
 | `GOOGLE_CLIENT_ID` | Printed by `yt-idea-oauth` |
 | `GOOGLE_CLIENT_SECRET` | Printed by `yt-idea-oauth` |
-| `GOOGLE_REFRESH_TOKEN` | Printed by `yt-idea-oauth` |
+| `GOOGLE_REFRESH_TOKEN` | Single-account mode only; printed by the default OAuth command |
+| `YOUTUBE_REFRESH_TOKEN` | Two-account mode; printed by `--account youtube` |
+| `SHEETS_REFRESH_TOKEN` | Two-account mode; printed by `--account sheets` |
 | `GEMINI_API_KEY` | Gemini API key from Google AI Studio |
 | `YOUTUBE_CHANNEL_ID` | The channel ID beginning with `UC` |
 | `GOOGLE_SHEET_ID` | The value between `/d/` and `/edit` in the Sheet URL |
@@ -65,7 +82,7 @@ Push the repository, open Actions, select **Collect YouTube video ideas**, and u
 
 ## Local execution
 
-Set the same six required environment variables, then run:
+Set the same required environment variables, using either `GOOGLE_REFRESH_TOKEN` for single-account mode or both account-specific refresh tokens for two-account mode, then run:
 
 ```powershell
 yt-idea-collector
