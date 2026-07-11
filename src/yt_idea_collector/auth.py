@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from urllib.parse import urlencode
+from urllib.request import Request as UrlRequest, urlopen
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
@@ -21,17 +25,32 @@ def credentials(client_id: str, client_secret: str, refresh_token: str) -> Crede
     )
 
 
-def refresh_and_validate_scopes(creds: Credentials) -> None:
-    """Refresh once and turn incomplete OAuth consent into an actionable error."""
-    creds.refresh(Request())
-    granted = set(creds.granted_scopes or ())
-    if not granted:
-        return
+def access_token_scopes(access_token: str) -> set[str]:
+    """Ask Google's token endpoint which scopes the access token actually has."""
+    request = UrlRequest(
+        "https://oauth2.googleapis.com/tokeninfo",
+        data=urlencode({"access_token": access_token}).encode("utf-8"),
+        method="POST",
+    )
+    with urlopen(request, timeout=15) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return set(payload.get("scope", "").split())
+
+
+def validate_access_token_scopes(access_token: str) -> None:
+    granted = access_token_scopes(access_token)
     missing = set(SCOPES) - granted
     if missing:
         formatted = "\n  - ".join(sorted(missing))
         raise RuntimeError(
-            "The saved GOOGLE_REFRESH_TOKEN is missing required permissions. "
-            "Run `yt-idea-oauth client_secret.json` again, approve every requested "
-            f"permission, and replace the GitHub secret. Missing scopes:\n  - {formatted}"
+            "Google issued an access token without every required permission. Revoke the app "
+            "at https://myaccount.google.com/connections, run `yt-idea-oauth "
+            "client_secret.json` again, and explicitly approve every requested permission. "
+            f"Missing scopes:\n  - {formatted}"
         )
+
+
+def refresh_and_validate_scopes(creds: Credentials) -> None:
+    """Refresh once and turn incomplete OAuth consent into an actionable error."""
+    creds.refresh(Request())
+    validate_access_token_scopes(creds.token)

@@ -4,7 +4,7 @@ import argparse
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from .auth import SCOPES
+from .auth import SCOPES, validate_access_token_scopes
 
 
 def main() -> None:
@@ -13,13 +13,7 @@ def main() -> None:
     args = parser.parse_args()
     flow = InstalledAppFlow.from_client_secrets_file(args.client_secrets, SCOPES)
     creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
-    granted = set(creds.granted_scopes or SCOPES)
-    missing = set(SCOPES) - granted
-    if missing:
-        raise RuntimeError(
-            "Google did not grant every required permission. Re-run setup and approve "
-            f"all requested access. Missing: {', '.join(sorted(missing))}"
-        )
+    validate_access_token_scopes(creds.token)
     print("\nAdd these values as GitHub repository secrets:")
     print(f"GOOGLE_CLIENT_ID={creds.client_id}")
     print(f"GOOGLE_CLIENT_SECRET={creds.client_secret}")

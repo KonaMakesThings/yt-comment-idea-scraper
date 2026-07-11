@@ -39,7 +39,7 @@ yt-idea-oauth .\client_secret.json
 
 A browser opens for authorization. The command prints `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REFRESH_TOKEN`. Treat all three as secrets; do not commit the downloaded JSON or printed values.
 
-If GitHub reports `insufficient authentication scopes`, the stored refresh token was issued without one or more required permissions. Run the OAuth command again, approve every requested permission, and replace all three `GOOGLE_*` GitHub secrets with the newly printed values. Changing scopes in the source code cannot add permissions to an existing refresh token.
+If GitHub reports `insufficient authentication scopes`, the stored refresh token was issued without one or more required permissions. Remove the app from [Google Account connections](https://myaccount.google.com/connections), run the OAuth command again, explicitly select every requested permission, and replace all three `GOOGLE_*` GitHub secrets with the newly printed values. The setup command verifies the actual access-token scopes before printing credentials. Changing scopes in source code cannot add permissions to an existing refresh token.
 
 ## GitHub configuration
 
