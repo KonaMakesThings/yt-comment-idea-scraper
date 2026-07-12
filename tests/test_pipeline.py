@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 
 from yt_idea_collector.models import Classification, Comment, Video
 from yt_idea_collector.pipeline import Pipeline
+from yt_idea_collector.policy import CLASSIFIER_VERSION
 
 
 NOW = datetime(2026, 1, 2, tzinfo=timezone.utc)
@@ -48,6 +49,9 @@ class Store:
 
     def ideas(self):
         return {}
+
+    def baselines(self, max_age_days):
+        return []
 
     def write_result(self, *args):
         self.writes += 1
@@ -97,3 +101,20 @@ def test_failed_batch_is_not_processed():
     result = job.run()
     assert result.errors == 1
     assert store.result_writes == 0  # failed comments remain eligible for the next run
+
+
+def test_cleanup_only_reprocesses_rows_from_an_older_policy_version():
+    old = comment("old-policy")
+    current = comment("current-policy")
+    store = Store({
+        old.id: (old.updated_at.isoformat(), "idea", "2", "older-policy"),
+        current.id: (current.updated_at.isoformat(), "idea", "3", CLASSIFIER_VERSION),
+    })
+    classifier = Classifier()
+    job = Pipeline(YouTube([old, current]), classifier, store, channel_id="owner",
+                   batch_size=20, backfill_start=date(2025, 12, 1), reprocess=True)
+
+    result = job.run()
+
+    assert result.eligible == 1
+    assert [item.id for item in classifier.seen] == [old.id]

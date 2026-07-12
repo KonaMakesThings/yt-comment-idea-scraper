@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from yt_idea_collector.models import Classification, Comment, Score, Video
-from yt_idea_collector.sheets import IDEA_HEADERS, SheetStore
+from yt_idea_collector.sheets import IDEA_HEADERS, QUEUE_SHEET, SheetStore
 
 
 class MemorySheet(SheetStore):
@@ -11,24 +11,22 @@ class MemorySheet(SheetStore):
         self.processed_rows = []
 
     def _values(self, range_):
-        if range_ == "'Ideas'!A2:R":
+        if range_ == f"'{QUEUE_SHEET}'!A2:R":
             return [row[:] for row in self.idea_rows]
-        if range_ == "'_Processed'!A2:D":
+        if range_ == "'_Processed'!A2:E":
             return [row[:] for row in self.processed_rows]
-        if range_ == "'_Processed'!A2:A":
-            return [[row[0]] for row in self.processed_rows]
         raise AssertionError(range_)
 
     def _append(self, range_, values):
-        if range_ == "'Ideas'!A:R":
+        if range_ == f"'{QUEUE_SHEET}'!A:R":
             self.idea_rows.extend([row[:] for row in values])
-        elif range_ == "'_Processed'!A:D":
+        elif range_ == "'_Processed'!A:E":
             self.processed_rows.extend([row[:] for row in values])
         else:
             raise AssertionError(range_)
 
     def _update(self, range_, values):
-        if range_.startswith("'Ideas'!A"):
+        if range_.startswith(f"'{QUEUE_SHEET}'!A"):
             index = int(range_.split("A")[-1]) - 2
             self.idea_rows[index] = values[0][:]
         elif range_.startswith("'_Processed'!A"):
@@ -38,7 +36,7 @@ class MemorySheet(SheetStore):
             raise AssertionError(range_)
 
     def _delete_row(self, title, row_number):
-        assert title == "Ideas"
+        assert title == QUEUE_SHEET
         del self.idea_rows[row_number - 2]
 
 
@@ -67,10 +65,11 @@ def objects(text="Try Overwatch"):
 def test_new_then_edited_comment_updates_without_duplicate():
     store = MemorySheet()
     comment, result, score, video = objects()
-    store.write_result(comment, result, score, video, None)
+    store.write_result(comment, result, score, video, None, "policy-v3")
     assert len(store.idea_rows) == 1
     assert len(store.processed_rows) == 1
     assert store.idea_rows[0][IDEA_HEADERS.index("Raw Comment")] == "Try Overwatch"
+    assert store.processed_rows[0][4] == "policy-v3"
 
     edited, result, score, video = objects("Please play Overwatch 2")
     existing = store.ideas()["c1"]
@@ -94,14 +93,14 @@ def test_comment_that_no_longer_qualifies_is_removed_but_deduped():
 def test_managed_header_row_is_repaired_without_rewriting_data_rows():
     store = HeaderMemorySheet([["Custom heading", *IDEA_HEADERS[1:]]])
 
-    store._ensure_headers("Ideas", IDEA_HEADERS)
+    store._ensure_headers(QUEUE_SHEET, IDEA_HEADERS)
 
-    assert store.updates == [("'Ideas'!A1", [IDEA_HEADERS])]
+    assert store.updates == [(f"'{QUEUE_SHEET}'!A1", [IDEA_HEADERS])]
 
 
 def test_matching_header_row_is_left_untouched():
     store = HeaderMemorySheet([IDEA_HEADERS.copy()])
 
-    store._ensure_headers("Ideas", IDEA_HEADERS)
+    store._ensure_headers(QUEUE_SHEET, IDEA_HEADERS)
 
     assert store.updates == []

@@ -4,6 +4,7 @@ import math
 from statistics import mean
 
 from .models import Baseline, Classification, Comment, Score
+from .topics import normalize_topic
 
 
 def _percentile(value: float, values: list[float]) -> float:
@@ -32,8 +33,8 @@ def performance_indices(rows: list[Baseline]) -> dict[str, float]:
 def score_idea(classification: Classification, comment: Comment, rows: list[Baseline]) -> Score:
     indices = performance_indices(rows)
     overall = mean(indices.values()) if indices else 0.5
-    topic_key = classification.topic.strip().casefold()
-    comparable = [row for row in rows if row.topic.strip().casefold() == topic_key]
+    topic_key = normalize_topic(classification.topic).casefold()
+    comparable = [row for row in rows if normalize_topic(row.topic).casefold() == topic_key]
     strong_evidence = len(comparable) >= 3
     topic_score = mean(indices[row.video.id] for row in comparable) if strong_evidence else overall
     recent_rows = sorted(rows, key=lambda row: row.video.published_at, reverse=True)[:10]
@@ -51,4 +52,3 @@ def score_idea(classification: Classification, comment: Comment, rows: list[Base
         evidence = f"Only {len(comparable)} comparable '{classification.topic}' videos; used overall channel baseline"
     rationale = f"{evidence}. Historical performance drives 90% of the estimate; request strength and likes contribute 10%."
     return Score(value, confidence, rationale)
-

@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Classify without changing the Sheet"
+        description: "Preview only — do not update or clean the Sheet"
         type: boolean
         default: false
       reprocess:
-        description: "Reclassify all comments and remove stale non-ideas"
+        description: "Clean the existing queue with the newest rules (safe to resume)"
         type: boolean
         default: false
 
@@ -24,7 +24,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6

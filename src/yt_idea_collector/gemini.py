@@ -4,7 +4,9 @@ import json
 from typing import Any
 
 from .models import Classification, Comment, Video
+from .policy import enforce_concrete_policy
 from .retry import with_retry
+from .topics import normalize_topic
 
 CLASSIFICATION_SCHEMA = {
     "type": "array",
@@ -54,14 +56,16 @@ strategy"; a concrete experiment, tutorial, comparison, challenge, build, or tes
 recommendation that clearly supplies a video subject. A slight nudge is okay, but do not infer a request
 from a statement merely because it mentions an interesting subject.
 
-Set is_idea=false for social, infrastructure, naming, or speculative chatter. In particular reject:
-viewer-invented weapon/class/item concepts that do not ask the creator to make a video about them;
+Set is_idea=false for social, infrastructure, naming, support, opinion, or speculative chatter. In
+particular reject any speculative viewer invention (weapon/class/item concept) that does not ask the
+creator to make a video about it;
 brainstorming names for classes or combos; vague "concept"/"idea" statements with no creator-directed
 action; plans to join a stream or requests to play with the viewer; requests for more servers, regions,
-or community infrastructure; Discord/friend invites; generic praise, greetings, jokes, arguments about
-a tactic with no request for content, vague opinions, and comments that only describe what the viewer
-likes. Asking what to call a Heavy + Pyro combo is not an idea unless it explicitly asks for a
-naming/explanation video. Do not turn every question into an idea.
+or community infrastructure; Discord/friend invites; requests for links, installation help, connection
+help, moderator access, or other technical support; generic praise, greetings, jokes, arguments about a
+tactic with no request for content, factual questions, vague opinions, comparisons, nostalgia, and
+comments that only describe what the viewer likes. Asking what to call a Heavy + Pyro combo is not an
+idea. Do not turn every question, observation, detailed opinion, or useful tip into a video idea.
 
 Use these labels as decision examples:
 REJECT: "Idea for a Pyro vacuum weapon that captures and shoots back projectiles." (speculative
@@ -70,6 +74,8 @@ REJECT: "Brainstorming names for a Trolldier/Pyro hybrid class." (naming brainst
 REJECT: "Suggests a level 4 sentry concept." (speculative concept without a creator-directed action)
 REJECT: "Viewer plans to join the next stream." (attendance/social)
 REJECT: "Request for more servers in Asia." (infrastructure/region request, not a video)
+REJECT: "How do I install the mod?" (support question, not a request to make a tutorial)
+REJECT: "GW1 has better maps and lighting than GW2." (ordinary opinion/comparison)
 ACCEPT: "Request to customize Chemist to look like Walter White." (specific creator-directed video)
 ACCEPT: "Request to play Taco Bandits on Xbox." (specific game/platform request)
 ACCEPT: "Request for more Splatoon content." (explicit request for more content)
@@ -88,7 +94,7 @@ RECORDS:\n""" + json.dumps(records, ensure_ascii=False)
         by_id = {item["comment_id"]: item for item in parsed}
         if set(by_id) != {c.id for c in comments}:
             raise ValueError("Gemini response did not contain exactly one result per input comment")
-        return [Classification(**by_id[c.id]) for c in comments]
+        return [enforce_concrete_policy(c, Classification(**by_id[c.id])) for c in comments]
 
     def topics(self, videos: list[Video]) -> dict[str, str]:
         if not videos:
@@ -102,7 +108,7 @@ Return exactly one entry per video_id. RECORDS:\n""" + json.dumps(records, ensur
             config={"response_mime_type": "application/json", "response_json_schema": TOPIC_SCHEMA, "temperature": 0.0},
         ))
         parsed = json.loads(response.text)
-        result = {item["video_id"]: item["topic"] for item in parsed}
+        result = {item["video_id"]: normalize_topic(item["topic"]) for item in parsed}
         if set(result) != {v.id for v in videos}:
             raise ValueError("Gemini topic response did not contain exactly one result per video")
         return result

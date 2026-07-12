@@ -1,14 +1,16 @@
 # YouTube Comment Idea Collector
 
-This project scans published comments and viewer replies across a YouTube channel, uses Gemini 3.1 Flash-Lite to find broad video-idea signals, scores them against the channel's own long-form performance, and maintains a review queue in Google Sheets.
+This project scans published comments and viewer replies across a YouTube channel, uses Gemini 3.1 Flash-Lite to find concrete creator-directed video ideas, scores them against the channel's own long-form performance, and maintains a compact review queue in Google Sheets.
 
 It uses official Google APIs—no HTML scraping. The first run considers comments posted on or after **December 1, 2025**. Subsequent runs skip unchanged comments and revisit edited ones. A scheduled GitHub Actions workflow runs every day at 13:00 UTC.
 
 ## What counts as an idea
 
-The prompt is intentionally recall-oriented. It includes direct requests, “have you played…” questions, recommendations, detailed loadouts or strategies, suggested experiments and comparisons, and other comments with an actionable creative seed. Gemini returns a confidence and category so borderline ideas remain easy to review.
+An idea must direct the creator toward a specific game, weapon, loadout, challenge, experiment, comparison, video format, or substantial topic. Examples include “have you played Overwatch?”, “try the Meteor Shower on Heavy”, a custom-weapon tier list, or a request for more Splatoon content.
 
-The visible `Ideas` tab contains the editable review status and notes, deterministic 1–10 opportunity score and rationale, normalized topic, source links, author and timestamp, raw comment, and classifier metadata. Hidden tabs contain processed IDs, the video performance baseline, and run history. Rejected comments are represented only by ID, update time, and outcome—raw rejected text is not archived.
+The collector rejects requests to play with the commenter, server/link/install help, regional-server requests, naming brainstorms, ordinary opinions, nostalgia, game-developer wishes, and viewer-invented weapons unless the viewer explicitly asks the creator to make content about them. A deterministic policy check runs after Gemini so these high-noise categories cannot slip through solely because the model wrote an enthusiastic summary.
+
+The visible `Review Queue` tab puts the useful fields first: status, score, idea, normalized game/topic, source video, comment link, date, and creator notes. Technical columns remain available but hidden. On upgrade, the old `Ideas` tab is copied into the new queue and retained as a hidden backup. Hidden implementation tabs contain processed IDs, the cached video-performance baseline, and run history. Rejected comments are represented only by ID, update time, and outcome; raw rejected text is not archived.
 
 ## Prerequisites
 
@@ -80,13 +82,34 @@ Optional Actions variables:
 |---|---:|---|
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Stable Gemini model name |
 | `GEMINI_BATCH_SIZE` | `20` | Comments/videos per model call; valid range 1–50 |
-| `REPROCESS_COMMENTS` | `false` | Set `true` for one manual run to reclassify all comments since `BACKFILL_START` |
+| `REPROCESS_COMMENTS` | `false` | Advanced: continuously request cleanup with the current policy version |
 
-Push the repository, open Actions, select **Collect YouTube video ideas**, and use **Run workflow**. The first normal run initializes the four Sheet tabs and performs the backfill. Later runs are incremental. Manual dry runs are read-only and require the Sheet to have been initialized by a previous normal run.
+Push the repository, open **Actions**, select **Collect YouTube video ideas**, and choose **Run workflow**. Use the branch containing the version you want to run; after a pull request is merged, use `main`.
+
+For normal use:
+
+1. Leave both boxes unchecked.
+2. Click **Run workflow**.
+3. Watch the `Collect ideas` step. It reports the fetched count and progress as `batch 1/N`, `batch 2/N`, and so on.
+
+The first normal run initializes the Sheet and performs the backfill. Later scheduled runs are incremental and usually process only a small number of new or edited comments. **Preview only** (dry run) calls the APIs and Gemini but never changes or cleans the Sheet.
 
 ### Cleaning an over-broad first pass
 
-The classifier is intentionally conservative about what counts as a concrete video idea. If an older run put social chatter, naming questions, or requests to play together into `Ideas`, manually run the workflow with the **Reprocess all comments** option enabled (and **Dry run** disabled). The run reclassifies the existing comment history and deletes rows that no longer qualify while retaining their IDs in `_Processed` so they do not return on the next daily run. Direct topic questions such as “have you played X?” and concrete weapon/loadout recommendations remain eligible. For scheduled runs, the optional `REPROCESS_COMMENTS` Actions variable can be used instead, but turn it back off immediately after the cleanup.
+If an older run put clutter into the queue, run the workflow once with **Clean the existing queue with the newest rules** checked and **Preview only** unchecked. Cleanup is resumable: every successful batch records the classifier-policy version, so a timeout or cancellation can be restarted with the same selections without beginning again. Rows that no longer qualify are removed from `Review Queue`, while their IDs remain in `_Processed` so they do not return on the next daily run.
+
+Direct topic questions such as “have you played X?” and concrete weapon/loadout recommendations remain eligible. Support questions, social requests, ordinary opinions, and speculative concepts are removed. You do not need to toggle the repository variable back and forth; the version marker prevents already-cleaned comments from being repeatedly reprocessed.
+
+### Reviewing ideas without the clutter
+
+Use the status dropdown in `Review Queue`:
+
+- `Keep`: worth developing
+- `Maybe`: revisit later
+- `Reject`: not useful after human review
+- `Used`: turned into content
+
+Add context in `Creator Notes`. The automation preserves both fields when a comment is edited and reclassified. The wide technical fields are hidden to the right; unhide them only when diagnosing a score or classification.
 
 ## Local execution
 
@@ -97,7 +120,7 @@ yt-idea-collector
 yt-idea-collector --dry-run
 ```
 
-`BACKFILL_START` can override the default `2025-12-01`. A dry run retrieves data, rebuilds the in-memory baseline, and calls Gemini, but does not initialize or write to the Sheet.
+`BACKFILL_START` can override the default `2025-12-01`. A dry run retrieves data, uses the cached baseline when available, and calls Gemini, but does not initialize or write to the Sheet.
 
 ## How scoring works
 
@@ -109,7 +132,7 @@ Each historical video gets a percentile-based performance index. An idea's score
 - 15% the ten most recent long-form videos
 - 10% classifier confidence and comment likes
 
-At least three topic matches are required. Otherwise the system uses the overall long-form baseline, marks confidence `Low`, and explains the fallback. Gemini writes the topic and idea summary, but it does not choose the numeric score.
+At least three topic matches are required. Common aliases such as `TF2`, `TF2 Classified`, and `Team Fortress 2` share one scoring bucket; Garden Warfare spellings are normalized similarly. Otherwise the system uses the overall long-form baseline, marks confidence `Low`, and explains the fallback. Gemini writes the topic and idea summary, but it does not choose the numeric score. The performance baseline is cached for seven days so ordinary and cleanup runs do not repeatedly call Analytics for every historical video.
 
 The score is directional, not a promise of future views. After the queue has been useful for a while, competitor benchmarking can be added as a separate calibrated signal.
 
@@ -118,8 +141,8 @@ The score is directional, not a promise of future views. After the queue has bee
 - YouTube list operations used here normally cost one quota unit per page; the collector scans all thread pages so it can notice replies added to old threads.
 - Public YouTube comments and video metadata use `YOUTUBE_API_KEY`; OAuth is reserved for read-only owner Analytics.
 - Complete replies are fetched when the thread's reported reply count exceeds its embedded reply sample.
-- API rate limits and transient server errors use exponential backoff. A failed Gemini batch is not written to `_Processed`, so the next run retries it.
-- The Sheet header shape is validated before writes. Unexpected columns stop the run instead of risking data loss. Add personal columns only after the existing columns, or use `Creator Notes`.
+- API rate limits, read timeouts, and transient connection/server errors use exponential backoff. A failed Gemini batch is not written to `_Processed`, so the next run retries it.
+- Collector-owned headers are repaired automatically. Keep personal review text in `Creator Notes`; the old wide `Ideas` tab is retained as a hidden migration backup rather than overwritten or deleted.
 - Gemini's free tier may use submitted content to improve Google products. This project submits public comment text and source-video titles.
 
 ## Development
