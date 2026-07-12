@@ -69,6 +69,10 @@ def test_classification_prompt_uses_concrete_creator_directed_examples():
     ("How do I install this mod?", "question"),
     ("Had an idea for a Pyro vacuum weapon", "implied_concept"),
     ("GW1 has much better lighting than GW2", "recommendation"),
+    ("GW2 BUT I HAVE ALCOHOLISM!!!!!!", "loadout_or_strategy"),
+    ("use your fricking jackhammer", "recommendation"),
+    ("You should totally try the tip i sent you", "recommendation"),
+    ("Now what about 101 players", "recommendation"),
 ])
 def test_deterministic_policy_rejects_known_clutter(text, idea_type):
     output = [{"comment_id": "c1", "is_idea": True, "confidence": "High",
