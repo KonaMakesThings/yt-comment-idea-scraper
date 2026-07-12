@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .models import Baseline, Classification, Comment, Score, Video
+from .duplicates import duplicate_group
 from .retry import with_retry
 
 LEGACY_IDEA_HEADERS = [
@@ -12,11 +13,17 @@ LEGACY_IDEA_HEADERS = [
     "Comment Link", "Username", "Posted Time", "Raw Comment", "Comment Likes",
     "Classification Confidence", "Processed Time", "Comment ID",
 ]
-IDEA_HEADERS = [
+LEGACY_QUEUE_HEADERS = [
     "Review Status", "Opportunity Score", "Idea Summary", "Inferred Game/Topic",
     "Source Video Title", "Comment Link", "Posted Time", "Creator Notes",
     "Score Confidence", "Score Rationale", "Idea Type", "Video Link", "Username",
     "Raw Comment", "Comment Likes", "Classification Confidence", "Processed Time", "Comment ID",
+]
+IDEA_HEADERS = [
+    "Review Status", "Opportunity Score", "Idea Summary", "Original Comment",
+    "Inferred Game/Topic", "Source Video Title", "Comment Link", "Posted Time", "Creator Notes",
+    "Duplicate Group", "Score Confidence", "Score Rationale", "Idea Type", "Video Link", "Username",
+    "Comment Likes", "Classification Confidence", "Processed Time", "Comment ID",
 ]
 QUEUE_SHEET = "Review Queue"
 PROCESSED_HEADERS = [
@@ -54,6 +61,7 @@ class SheetStore:
         # Refresh IDs after additions, migrate the legacy Ideas tab once, then give hidden implementation tabs a
         # warning-only protection so accidental edits are discouraged but recoverable.
         self._migrate_legacy_ideas()
+        self._migrate_queue_headers()
         meta = with_retry(lambda: self.service.spreadsheets().get(
             spreadsheetId=self.id, fields="sheets(properties,protectedRanges)",
         ).execute())
@@ -84,7 +92,7 @@ class SheetStore:
 
     def _migrate_legacy_ideas(self) -> None:
         """Copy the old wide Ideas table into the compact queue without deleting the backup."""
-        queue = self._values(f"'{QUEUE_SHEET}'!A1:R")
+        queue = self._values(f"'{QUEUE_SHEET}'!A1:S")
         if len(queue) > 1:
             return
         try:
@@ -102,12 +110,38 @@ class SheetStore:
         for source in legacy[1:]:
             padded = source + [""] * len(LEGACY_IDEA_HEADERS)
             by_name = {name: padded[index] for name, index in positions.items()}
+            by_name["Original Comment"] = by_name.get("Raw Comment", "")
+            by_name["Duplicate Group"] = duplicate_group(
+                by_name.get("Idea Summary", ""), by_name.get("Inferred Game/Topic", ""),
+            )
+            migrated.append([by_name.get(header, "") for header in IDEA_HEADERS])
+        self._update(f"'{QUEUE_SHEET}'!A1", migrated)
+
+    def _migrate_queue_headers(self) -> None:
+        """Upgrade an existing Review Queue while preserving notes and raw comments."""
+        queue = self._values(f"'{QUEUE_SHEET}'!A1:S")
+        if not queue:
+            return
+        current_headers = queue[0]
+        if current_headers[:len(IDEA_HEADERS)] == IDEA_HEADERS:
+            return
+        if not set(LEGACY_QUEUE_HEADERS).issubset(set(current_headers)):
+            return
+        positions = {name: current_headers.index(name) for name in LEGACY_QUEUE_HEADERS}
+        migrated = [IDEA_HEADERS]
+        for source in queue[1:]:
+            padded = source + [""] * len(LEGACY_QUEUE_HEADERS)
+            by_name = {name: padded[index] for name, index in positions.items()}
+            by_name["Original Comment"] = by_name.get("Raw Comment", "")
+            by_name["Duplicate Group"] = by_name.get("Duplicate Group") or duplicate_group(
+                by_name.get("Idea Summary", ""), by_name.get("Inferred Game/Topic", ""),
+            )
             migrated.append([by_name.get(header, "") for header in IDEA_HEADERS])
         self._update(f"'{QUEUE_SHEET}'!A1", migrated)
 
     def _format_review_queue(self) -> None:
         sheet_id = self._sheet_id(QUEUE_SHEET)
-        widths = [120, 90, 430, 190, 260, 150, 165, 280]
+        widths = [110, 90, 360, 430, 190, 270, 150, 165, 250, 180]
         requests: list[dict[str, Any]] = [{
             "updateSheetProperties": {
                 "properties": {"sheetId": sheet_id, "index": 0,
@@ -129,7 +163,7 @@ class SheetStore:
         }, {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 1,
-                          "startColumnIndex": 0, "endColumnIndex": 8},
+                          "startColumnIndex": 0, "endColumnIndex": 10},
                 "cell": {"userEnteredFormat": {"verticalAlignment": "MIDDLE", "wrapStrategy": "WRAP"}},
                 "fields": "userEnteredFormat.verticalAlignment,userEnteredFormat.wrapStrategy",
             }
@@ -138,7 +172,7 @@ class SheetStore:
                 "range": {"sheetId": sheet_id, "startRowIndex": 1,
                           "startColumnIndex": 0, "endColumnIndex": 1},
                 "rule": {"condition": {"type": "ONE_OF_LIST", "values": [
-                    {"userEnteredValue": value} for value in ("New", "Keep", "Maybe", "Reject", "Used")
+                    {"userEnteredValue": value} for value in ("New", "Keep", "Maybe", "Reject", "Duplicate", "Used")
                 ]}, "strict": True, "showCustomUi": True},
             }
         }, {
@@ -149,13 +183,13 @@ class SheetStore:
         }, {
             "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "COLUMNS",
-                          "startIndex": 8, "endIndex": len(IDEA_HEADERS)},
+                          "startIndex": 10, "endIndex": len(IDEA_HEADERS)},
                 "properties": {"hiddenByUser": True}, "fields": "hiddenByUser",
             }
         }, {
             "updateDimensionProperties": {
                 "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 1},
-                "properties": {"pixelSize": 58}, "fields": "pixelSize",
+                "properties": {"pixelSize": 78}, "fields": "pixelSize",
             }
         }]
         for index, width in enumerate(widths):
@@ -165,6 +199,29 @@ class SheetStore:
                 "properties": {"pixelSize": width, "hiddenByUser": False},
                 "fields": "pixelSize,hiddenByUser",
             }})
+        meta = with_retry(lambda: self.service.spreadsheets().get(
+            spreadsheetId=self.id, fields="sheets(properties(sheetId,title),conditionalFormats)",
+        ).execute())
+        rules_exist = any(
+            sheet.get("properties", {}).get("sheetId") == sheet_id and sheet.get("conditionalFormats")
+            for sheet in meta.get("sheets", [])
+        )
+        if not rules_exist:
+            status_colors = {
+                "Keep": {"red": 0.86, "green": 0.95, "blue": 0.88},
+                "Maybe": {"red": 1.0, "green": 0.95, "blue": 0.78},
+                "Reject": {"red": 1.0, "green": 0.86, "blue": 0.86},
+                "Duplicate": {"red": 0.91, "green": 0.87, "blue": 1.0},
+                "Used": {"red": 0.84, "green": 0.92, "blue": 1.0},
+            }
+            for index, (status, color) in enumerate(status_colors.items()):
+                requests.append({"addConditionalFormatRule": {"index": index, "rule": {
+                    "ranges": [{"sheetId": sheet_id, "startRowIndex": 1,
+                                "startColumnIndex": 0, "endColumnIndex": len(IDEA_HEADERS)}],
+                    "booleanRule": {"condition": {"type": "CUSTOM_FORMULA",
+                                                   "values": [{"userEnteredValue": f'=$A2="{status}"'}]},
+                                    "format": {"backgroundColor": color}},
+                }}})
         with_retry(lambda: self.service.spreadsheets().batchUpdate(
             spreadsheetId=self.id, body={"requests": requests},
         ).execute())
@@ -230,12 +287,13 @@ class SheetStore:
     def ideas(self) -> dict[str, tuple[int, list[str]]]:
         if self._ideas_cache is not None:
             return self._ideas_cache
-        rows = self._values(f"'{QUEUE_SHEET}'!A2:R")
+        rows = self._values(f"'{QUEUE_SHEET}'!A2:S")
         result: dict[str, tuple[int, list[str]]] = {}
         for index, row in enumerate(rows, start=2):
             padded = row + [""] * (len(IDEA_HEADERS) - len(row))
-            if padded[17]:
-                result[padded[17]] = (index, padded)
+            comment_id = padded[IDEA_HEADERS.index("Comment ID")]
+            if comment_id:
+                result[comment_id] = (index, padded)
         self._ideas_cache = result
         return self._ideas_cache
 
@@ -247,12 +305,12 @@ class SheetStore:
         if result.is_idea:
             old = existing_idea[1] if existing_idea else [""] * len(IDEA_HEADERS)
             row = [
-                old[0] or "New", score.value if score else "", result.summary, result.topic, video.title,
-                f"https://www.youtube.com/watch?v={video.id}&lc={comment.id}",
-                comment.published_at.isoformat(), old[7], score.confidence if score else "",
-                score.rationale if score else "", result.idea_type,
-                f"https://www.youtube.com/watch?v={video.id}", comment.author_name, comment.text,
-                comment.like_count, result.confidence, now, comment.id,
+                old[0] or "New", score.value if score else "", result.summary, comment.text, result.topic,
+                video.title, f"https://www.youtube.com/watch?v={video.id}&lc={comment.id}",
+                comment.published_at.isoformat(), old[8], old[9] or duplicate_group(result.summary, result.topic),
+                score.confidence if score else "", score.rationale if score else "", result.idea_type,
+                f"https://www.youtube.com/watch?v={video.id}", comment.author_name, comment.like_count,
+                result.confidence, now, comment.id,
             ]
             if existing_idea:
                 row_number = existing_idea[0]
@@ -260,7 +318,7 @@ class SheetStore:
             else:
                 current = self.ideas()
                 row_number = max((entry[0] for entry in current.values()), default=1) + 1
-                self._append(f"'{QUEUE_SHEET}'!A:R", [row])
+                self._append(f"'{QUEUE_SHEET}'!A:S", [row])
                 idea_row_id = str(row_number)
             self.ideas()[comment.id] = (row_number, row)
         elif existing_idea:

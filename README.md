@@ -10,7 +10,7 @@ An idea must direct the creator toward a specific game, weapon, loadout, challen
 
 The collector rejects requests to play with the commenter, server/link/install help, regional-server requests, naming brainstorms, ordinary opinions, nostalgia, game-developer wishes, and viewer-invented weapons unless the viewer explicitly asks the creator to make content about them. A deterministic policy check runs after Gemini so these high-noise categories cannot slip through solely because the model wrote an enthusiastic summary.
 
-The visible `Review Queue` tab puts the useful fields first: status, score, idea, normalized game/topic, source video, comment link, date, and creator notes. Technical columns remain available but hidden. On upgrade, the old `Ideas` tab is copied into the new queue and retained as a hidden backup. Hidden implementation tabs contain processed IDs, the cached video-performance baseline, and run history. Rejected comments are represented only by ID, update time, and outcome; raw rejected text is not archived.
+The visible `Review Queue` tab puts the useful fields first: status, score, idea, original comment, normalized game/topic, source video, comment link, date, creator notes, and duplicate group. Technical columns remain available but hidden. On upgrade, the old `Ideas` tab is copied into the new queue and retained as a hidden backup. Hidden implementation tabs contain processed IDs, the cached video-performance baseline, and run history. Rejected comments are represented only by ID, update time, and outcome; raw rejected text is not archived.
 
 ## Prerequisites
 
@@ -107,6 +107,7 @@ Use the status dropdown in `Review Queue`:
 - `Keep`: worth developing
 - `Maybe`: revisit later
 - `Reject`: not useful after human review
+- `Duplicate`: same underlying request as another row; use `Duplicate Group` to keep the cluster together
 - `Used`: turned into content
 
 Add context in `Creator Notes`. The automation preserves both fields when a comment is edited and reclassified. The wide technical fields are hidden to the right; unhide them only when diagnosing a score or classification.

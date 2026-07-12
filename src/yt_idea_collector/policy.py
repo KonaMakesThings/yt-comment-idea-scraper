@@ -8,7 +8,7 @@ from .topics import normalize_topic
 
 
 # Written to _Processed so interrupted cleanup runs resume instead of starting over.
-CLASSIFIER_VERSION = "concrete-creator-directed-v3"
+CLASSIFIER_VERSION = "concrete-creator-directed-v4"
 
 _HARD_REJECTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("social/play request", re.compile(
@@ -31,25 +31,29 @@ _HARD_REJECTS: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"what (?:should|would|do) (?:we|you|i) call)\b", re.I)),
     ("channel appearance feedback", re.compile(
         r"\b(channel avatar|new avatar|profile picture|red version of (?:the |your )?avatar)\b", re.I)),
+    ("joke or meme", re.compile(
+        r"\b(alcoholism|liver failure|101 players?|pick up a dolphin)\b|"
+        r"^\s*(?:gw\s*[12]|garden ops)\s+but\b|\b(?:hop on|i'll hop on)\s+taco bandits\b", re.I)),
+    ("vague callback or gameplay coaching", re.compile(
+        r"\b(try (?:the )?tip i sent|tip i sent|use your (?:fricking )?jackhammer|"
+        r"more matches like that|this one|that one)\b", re.I)),
 )
 
 _QUESTION_WITH_VIDEO_INTENT = re.compile(
     r"\b(have you (?:played|tried|checked out|used)|"
     r"(?:can|could|would|will) you (?:play|try|test|make|show|showcase|cover|review|revisit|customize)|"
     r"are you (?:going to|gonna|planning to) (?:play|try|make|cover|stream)|"
-    r"playthrough|video (?:about|on|covering)|did i miss (?:that |the )?video)\b", re.I)
+    r"playthrough|video (?:about|on|covering)|what about .{0,30}gameplay|did i miss (?:that |the )?video)\b", re.I)
 
 _CREATOR_ACTION = re.compile(
     r"\b(?:you|u) (?:should|need to|have to|could)\b|"
     r"\b(?:can|could|would|will) (?:you|u)\b|"
-    r"\b(?:please )?(?:try|play|use|make|showcase|test|revisit|review|customize|rank|cover)\b|"
-    r"\b(?:video|stream|playthrough|tier list|challenge|breakdown)\b|"
+    r"\b(?:please )?(?:try|play as|make|showcase|test|revisit|review|customize|rank|cover)\b|"
+    r"\b(?:video|stream|playthrough|tier list|challenge|breakdown|comparison|next)\b|"
     r"\b(?:i recommend|i suggest|would love to see|wanna see|want to see|more .{0,40} content)\b|"
     r"\b(?:aconsejo|recomiendo|sugiero|deber[ií]as|prueba|juega|советую)\b", re.I)
 
-_SHORTHAND_IDEA = re.compile(
-    r"^\s*(?:gw\s*[12]|tf2|garden ops|mvm|pvz)\s+but\b|"
-    r"\bwhat about \d+(?:\.\d+)? players?\b|\b(?:ice|toxic|fire|power) next+\b", re.I)
+_SERIES_NUDGE = re.compile(r"\b(?:ice|toxic|fire|power) next+\b", re.I)
 
 _SPECULATIVE_ONLY = re.compile(
     r"\b(idea for (?:a|an) .{0,30}(?:weapon|class|item)|should be added to (?:the )?(?:game|mod)|"
@@ -81,7 +85,7 @@ def enforce_concrete_policy(comment: Comment, result: Classification) -> Classif
                        rationale="Rejected by concrete-idea policy: viewer invention or developer-facing wish.")
 
     if normalized.idea_type in {"recommendation", "loadout_or_strategy", "other"}:
-        if not (_CREATOR_ACTION.search(text) or _SHORTHAND_IDEA.search(text)):
+        if not (_CREATOR_ACTION.search(text) or _SERIES_NUDGE.search(text)):
             return replace(normalized, is_idea=False, idea_type="not_an_idea", summary="", topic="",
                            rationale="Rejected by concrete-idea policy: no creator-directed action.")
 

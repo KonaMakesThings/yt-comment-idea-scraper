@@ -85,7 +85,7 @@ def test_deterministic_policy_rejects_known_clutter(text, idea_type):
     ("You should try the Meteor Shower on Heavy", "loadout_or_strategy"),
     ("Please customize Chemist to look like Walter White", "recommendation"),
     ("Please make more Splatoon content", "direct_request"),
-    ("GW2 BUT I HAVE ALCOHOLISM", "loadout_or_strategy"),
+    ("ICE NEXTTT Toxic for last", "recommendation"),
 ])
 def test_deterministic_policy_keeps_concrete_video_requests(text, idea_type):
     output = [{"comment_id": "c1", "is_idea": True, "confidence": "High",

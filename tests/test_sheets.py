@@ -11,14 +11,14 @@ class MemorySheet(SheetStore):
         self.processed_rows = []
 
     def _values(self, range_):
-        if range_ == f"'{QUEUE_SHEET}'!A2:R":
+        if range_ == f"'{QUEUE_SHEET}'!A2:S":
             return [row[:] for row in self.idea_rows]
         if range_ == "'_Processed'!A2:E":
             return [row[:] for row in self.processed_rows]
         raise AssertionError(range_)
 
     def _append(self, range_, values):
-        if range_ == f"'{QUEUE_SHEET}'!A:R":
+        if range_ == f"'{QUEUE_SHEET}'!A:S":
             self.idea_rows.extend([row[:] for row in values])
         elif range_ == "'_Processed'!A:E":
             self.processed_rows.extend([row[:] for row in values])
@@ -68,7 +68,7 @@ def test_new_then_edited_comment_updates_without_duplicate():
     store.write_result(comment, result, score, video, None, "policy-v3")
     assert len(store.idea_rows) == 1
     assert len(store.processed_rows) == 1
-    assert store.idea_rows[0][IDEA_HEADERS.index("Raw Comment")] == "Try Overwatch"
+    assert store.idea_rows[0][IDEA_HEADERS.index("Original Comment")] == "Try Overwatch"
     assert store.processed_rows[0][4] == "policy-v3"
 
     edited, result, score, video = objects("Please play Overwatch 2")
@@ -76,7 +76,7 @@ def test_new_then_edited_comment_updates_without_duplicate():
     store.write_result(edited, result, score, video, existing)
     assert len(store.idea_rows) == 1
     assert len(store.processed_rows) == 1
-    assert store.idea_rows[0][IDEA_HEADERS.index("Raw Comment")] == "Please play Overwatch 2"
+    assert store.idea_rows[0][IDEA_HEADERS.index("Original Comment")] == "Please play Overwatch 2"
 
 
 def test_comment_that_no_longer_qualifies_is_removed_but_deduped():
