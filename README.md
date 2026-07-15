@@ -143,6 +143,7 @@ The score is directional, not a promise of future views. After the queue has bee
 - Public YouTube comments and video metadata use `YOUTUBE_API_KEY`; OAuth is reserved for read-only owner Analytics.
 - Complete replies are fetched when the thread's reported reply count exceeds its embedded reply sample.
 - API rate limits, read timeouts, and transient connection/server errors use exponential backoff. A failed Gemini batch is not written to `_Processed`, so the next run retries it.
+- Comments whose source video is deleted, private, or otherwise unavailable through the public Data API are recorded as `unavailable_video` in `_Processed` and skipped without being retried forever. Other processing errors make the GitHub Actions run fail visibly so they can be investigated.
 - Collector-owned headers are repaired automatically. Keep personal review text in `Creator Notes`; the old wide `Ideas` tab is retained as a hidden migration backup rather than overwritten or deleted.
 - Gemini's free tier may use submitted content to improve Google products. This project submits public comment text and source-video titles.
 

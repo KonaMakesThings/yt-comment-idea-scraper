@@ -54,13 +54,28 @@ class Pipeline:
         video_ids = sorted({c.video_id for c in eligible if c.video_id})
         videos = self.youtube.videos(video_ids)
         missing_video_ids = {c.video_id for c in eligible if not c.video_id or c.video_id not in videos}
-        errors = sum(1 for c in eligible if c.video_id in missing_video_ids)
-        error_messages = ([f"Missing/unavailable video metadata: {', '.join(sorted(missing_video_ids))}"]
-                          if missing_video_ids else [])
+        unavailable = [c for c in eligible if c.video_id in missing_video_ids]
+        error_messages: list[str] = []
+        if unavailable:
+            message = (f"Skipped {len(unavailable)} comments with unavailable video metadata"
+                       "; marked them processed so they are not retried forever")
+            error_messages.append(message)
+            print(message, flush=True)
+            if not self.dry_run:
+                for comment in unavailable:
+                    self.store.mark_processed(comment, "unavailable_video", CLASSIFIER_VERSION)
+        errors = 0
         if not eligible:
             summary = RunSummary(len(comments), 0, 0, 0)
             if not self.dry_run:
                 self.store.log_run("success", summary.fetched, 0, 0, 0, False, "No new or edited comments")
+            return summary
+        processable = [c for c in eligible if c.video_id in videos]
+        if not processable:
+            summary = RunSummary(len(comments), len(eligible), 0, 0)
+            if not self.dry_run:
+                self.store.log_run("success", summary.fetched, summary.eligible, 0, 0, False,
+                                   " | ".join(error_messages))
             return summary
         try:
             baselines = self._baselines()
@@ -70,11 +85,9 @@ class Pipeline:
             error_messages.append(f"Baseline refresh failed; scoring used fallback: {type(exc).__name__}: {exc}")
             print(f"Baseline refresh failed; continuing with low-confidence fallback scores: {exc}", flush=True)
         ideas = 0
-        total_batches = (len(eligible) + self.batch_size - 1) // self.batch_size
-        for batch_number, start in enumerate(range(0, len(eligible), self.batch_size), start=1):
-            batch = [c for c in eligible[start:start + self.batch_size] if c.video_id in videos]
-            if not batch:
-                continue
+        total_batches = (len(processable) + self.batch_size - 1) // self.batch_size
+        for batch_number, start in enumerate(range(0, len(processable), self.batch_size), start=1):
+            batch = processable[start:start + self.batch_size]
             print(f"Classifying batch {batch_number}/{total_batches} ({len(batch)} comments)...", flush=True)
             try:
                 results = self.classifier.classify(batch, {key: value.title for key, value in videos.items()})

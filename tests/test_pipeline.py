@@ -40,6 +40,7 @@ class Store:
         self.ensure_calls = 0
         self.writes = 0
         self.result_writes = 0
+        self.marked = []
 
     def ensure_layout(self):
         self.ensure_calls += 1
@@ -56,6 +57,10 @@ class Store:
     def write_result(self, *args):
         self.writes += 1
         self.result_writes += 1
+
+    def mark_processed(self, comment, outcome, classifier_version="", idea_row_id=""):
+        self.marked.append((comment.id, outcome, classifier_version, idea_row_id))
+        self.state[comment.id] = (comment.updated_at.isoformat(), outcome, idea_row_id, classifier_version)
 
     def write_baselines(self, rows):
         self.writes += 1
@@ -101,6 +106,21 @@ def test_failed_batch_is_not_processed():
     result = job.run()
     assert result.errors == 1
     assert store.result_writes == 0  # failed comments remain eligible for the next run
+
+
+def test_unavailable_video_is_recorded_without_being_an_error():
+    class MissingVideoYouTube(YouTube):
+        def videos(self, ids):
+            return {}
+
+    store = Store()
+    job = Pipeline(MissingVideoYouTube([comment("gone")]), Classifier(), store, channel_id="owner",
+                   batch_size=20, backfill_start=date(2025, 12, 1))
+
+    result = job.run()
+
+    assert result.errors == 0
+    assert store.marked == [("gone", "unavailable_video", CLASSIFIER_VERSION, "")]
 
 
 def test_cleanup_only_reprocesses_rows_from_an_older_policy_version():

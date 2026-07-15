@@ -14,7 +14,7 @@ from .sheets import SheetStore
 from .youtube import YouTubeClient
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="Collect video ideas from YouTube comments")
     parser.add_argument("--dry-run", action="store_true", help="Read and classify without writing to Sheets")
     args = parser.parse_args()
@@ -37,8 +37,12 @@ def main() -> None:
         channel_id=config.youtube_channel_id, batch_size=config.batch_size,
         backfill_start=config.backfill_start, dry_run=config.dry_run, reprocess=config.reprocess,
     )
-    print(json.dumps(pipeline.run().__dict__, indent=2))
+    summary = pipeline.run()
+    print(json.dumps(summary.__dict__, indent=2))
+    # GitHub Actions should alert on a partial run. Failed Gemini batches remain
+    # unprocessed and are intentionally retried on the next scheduled run.
+    return 1 if summary.errors else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

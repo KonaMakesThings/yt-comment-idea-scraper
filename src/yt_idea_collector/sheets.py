@@ -333,8 +333,17 @@ class SheetStore:
                 if row_number > deleted_row:
                     cache[key] = (row_number - 1, row)
             idea_row_id = ""
-        state = [comment.id, comment.updated_at.isoformat(),
-                 "idea" if result.is_idea else "not_idea", idea_row_id, classifier_version]
+        self._record_processed(comment, "idea" if result.is_idea else "not_idea", idea_row_id,
+                               classifier_version)
+
+    def mark_processed(self, comment: Comment, outcome: str, classifier_version: str = "",
+                       idea_row_id: str = "") -> None:
+        """Record a terminal outcome for a comment without adding it to the queue."""
+        self._record_processed(comment, outcome, idea_row_id, classifier_version)
+
+    def _record_processed(self, comment: Comment, outcome: str, idea_row_id: str,
+                          classifier_version: str) -> None:
+        state = [comment.id, comment.updated_at.isoformat(), outcome, idea_row_id, classifier_version]
         processed = self._processed_index()
         if comment.id in processed:
             row_number = processed[comment.id][0]
