@@ -62,6 +62,10 @@ class Store:
         self.marked.append((comment.id, outcome, classifier_version, idea_row_id))
         self.state[comment.id] = (comment.updated_at.isoformat(), outcome, idea_row_id, classifier_version)
 
+    def mark_processed_many(self, comments, outcome, classifier_version=""):
+        for comment in comments:
+            self.mark_processed(comment, outcome, classifier_version)
+
     def write_baselines(self, rows):
         self.writes += 1
 

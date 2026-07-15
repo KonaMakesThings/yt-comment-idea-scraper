@@ -341,6 +341,37 @@ class SheetStore:
         """Record a terminal outcome for a comment without adding it to the queue."""
         self._record_processed(comment, outcome, idea_row_id, classifier_version)
 
+    def mark_processed_many(self, comments: list[Comment], outcome: str,
+                            classifier_version: str = "") -> None:
+        """Record many terminal outcomes with one append request when possible.
+
+        Cleanup can encounter dozens of comments whose source videos disappeared.
+        Appending each row separately exceeds Sheets' per-user write quota, so new
+        rows are appended together. Existing identical rows are left untouched to
+        make retries after a partial run idempotent.
+        """
+        if not comments:
+            return
+        processed = self._processed_index()
+        pending: list[list[str]] = []
+        pending_ids: list[str] = []
+        for comment in comments:
+            state = [comment.id, comment.updated_at.isoformat(), outcome, "", classifier_version]
+            existing = processed.get(comment.id)
+            if existing:
+                if existing[1] == tuple(state[1:5]):
+                    continue
+                self._update(f"'_Processed'!A{existing[0]}", [state])
+                processed[comment.id] = (existing[0], tuple(state[1:5]))
+            else:
+                pending.append(state)
+                pending_ids.append(comment.id)
+        if pending:
+            start_row = max((entry[0] for entry in processed.values()), default=1) + 1
+            self._append("'_Processed'!A:E", pending)
+            for offset, (comment_id, state) in enumerate(zip(pending_ids, pending, strict=True)):
+                processed[comment_id] = (start_row + offset, tuple(state[1:5]))
+
     def _record_processed(self, comment: Comment, outcome: str, idea_row_id: str,
                           classifier_version: str) -> None:
         state = [comment.id, comment.updated_at.isoformat(), outcome, idea_row_id, classifier_version]

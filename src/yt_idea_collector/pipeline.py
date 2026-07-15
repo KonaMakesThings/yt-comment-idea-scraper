@@ -62,8 +62,7 @@ class Pipeline:
             error_messages.append(message)
             print(message, flush=True)
             if not self.dry_run:
-                for comment in unavailable:
-                    self.store.mark_processed(comment, "unavailable_video", CLASSIFIER_VERSION)
+                self.store.mark_processed_many(unavailable, "unavailable_video", CLASSIFIER_VERSION)
         errors = 0
         if not eligible:
             summary = RunSummary(len(comments), 0, 0, 0)

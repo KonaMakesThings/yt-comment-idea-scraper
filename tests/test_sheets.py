@@ -90,6 +90,19 @@ def test_comment_that_no_longer_qualifies_is_removed_but_deduped():
     assert store.processed_rows[0][2] == "not_idea"
 
 
+def test_many_terminal_outcomes_append_once_and_are_idempotent():
+    store = MemorySheet()
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    comments = [Comment(f"gone-{index}", "missing", None, "Viewer", "viewer", "text",
+                        now, now, 0) for index in range(3)]
+
+    store.mark_processed_many(comments, "unavailable_video", "policy-v4")
+    store.mark_processed_many(comments, "unavailable_video", "policy-v4")
+
+    assert len(store.processed_rows) == 3
+    assert {row[2] for row in store.processed_rows} == {"unavailable_video"}
+
+
 def test_managed_header_row_is_repaired_without_rewriting_data_rows():
     store = HeaderMemorySheet([["Custom heading", *IDEA_HEADERS[1:]]])
 
