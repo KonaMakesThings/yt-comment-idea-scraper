@@ -25,6 +25,9 @@ class MemorySheet(SheetStore):
         else:
             raise AssertionError(range_)
 
+    def _insert_queue_row(self, row):
+        self.idea_rows.insert(0, row[:])
+
     def _update(self, range_, values):
         if range_.startswith(f"'{QUEUE_SHEET}'!A"):
             index = int(range_.split("A")[-1]) - 2
@@ -77,6 +80,20 @@ def test_new_then_edited_comment_updates_without_duplicate():
     assert len(store.idea_rows) == 1
     assert len(store.processed_rows) == 1
     assert store.idea_rows[0][IDEA_HEADERS.index("Original Comment")] == "Please play Overwatch 2"
+
+
+def test_new_ideas_are_inserted_at_the_top_of_the_queue():
+    store = MemorySheet()
+    first, result, score, video = objects("Try Overwatch")
+    second, result, score, video = objects("Try Splatoon")
+    second = Comment("c2", second.video_id, second.parent_id, second.author_name, second.author_channel_id,
+                     second.text, second.published_at, second.updated_at, second.like_count)
+
+    store.write_result(first, result, score, video, None)
+    store.write_result(second, result, score, video, None)
+
+    assert store.idea_rows[0][IDEA_HEADERS.index("Comment ID")] == "c2"
+    assert store.idea_rows[1][IDEA_HEADERS.index("Comment ID")] == "c1"
 
 
 def test_comment_that_no_longer_qualifies_is_removed_but_deduped():

@@ -6,6 +6,7 @@ from typing import Any
 from .models import Baseline, Classification, Comment, Score, Video
 from .duplicates import duplicate_group
 from .retry import with_retry
+from .topics import normalize_topic
 
 LEGACY_IDEA_HEADERS = [
     "Review Status", "Creator Notes", "Opportunity Score", "Score Confidence", "Score Rationale",
@@ -37,6 +38,12 @@ RUN_HEADERS = ["Run Time", "Status", "Fetched", "Eligible", "Ideas", "Errors", "
 
 
 class SheetStore:
+    _KNOWN_TOPICS = {
+        "Team Fortress 2", "Plants vs. Zombies",
+        "Plants vs. Zombies: Garden Warfare", "Plants vs. Zombies: Garden Warfare 2",
+        "Splatoon", "Pokémon",
+    }
+
     def __init__(self, service: Any, spreadsheet_id: str):
         self.service = service
         self.id = spreadsheet_id
@@ -86,6 +93,7 @@ class SheetStore:
         for title, headers in ((QUEUE_SHEET, IDEA_HEADERS), ("_Processed", PROCESSED_HEADERS),
                                ("_VideoBaseline", BASELINE_HEADERS), ("_RunLog", RUN_HEADERS)):
             self._ensure_headers(title, headers)
+        self._normalize_existing_topics()
         self._format_review_queue()
         self._ideas_cache = None
         self._processed_cache = None
@@ -226,6 +234,41 @@ class SheetStore:
             spreadsheetId=self.id, body={"requests": requests},
         ).execute())
 
+    def _normalize_existing_topics(self) -> None:
+        """Repair legacy spelling variants in visible and scoring tables."""
+        queue = self._values(f"'{QUEUE_SHEET}'!A2:S")
+        topic_index = IDEA_HEADERS.index("Inferred Game/Topic")
+        normalized_queue = []
+        queue_changed = False
+        for source in queue:
+            row = source + [""] * (len(IDEA_HEADERS) - len(source))
+            old = row[topic_index]
+            context = " ".join(row[index] for index in (topic_index, 2, 3, 5) if row[index])
+            candidate = normalize_topic(context) if context else ""
+            new = candidate if candidate in self._KNOWN_TOPICS else (normalize_topic(old) if old else "")
+            if new != old:
+                row[topic_index] = new
+                queue_changed = True
+            normalized_queue.append(row)
+        if queue_changed:
+            self._update(f"'{QUEUE_SHEET}'!A2:S", normalized_queue)
+
+        baseline = self._values("'_VideoBaseline'!A2:L")
+        normalized_baseline = []
+        baseline_changed = False
+        for source in baseline:
+            row = source + [""] * (len(BASELINE_HEADERS) - len(source))
+            old = row[3]
+            context = " ".join(row[index] for index in (3, 1) if row[index])
+            candidate = normalize_topic(context) if context else ""
+            new = candidate if candidate in self._KNOWN_TOPICS else (normalize_topic(old) if old else "")
+            if new != old:
+                row[3] = new
+                baseline_changed = True
+            normalized_baseline.append(row)
+        if baseline_changed:
+            self._update("'_VideoBaseline'!A2:L", normalized_baseline)
+
     def _ensure_headers(self, title: str, headers: list[str]) -> None:
         """Restore the collector-owned header row without touching sheet data or formatting."""
         current = self._values(f"'{title}'!1:1")
@@ -317,8 +360,10 @@ class SheetStore:
                 self._update(f"'{QUEUE_SHEET}'!A{row_number}", [row])
             else:
                 current = self.ideas()
-                row_number = max((entry[0] for entry in current.values()), default=1) + 1
-                self._append(f"'{QUEUE_SHEET}'!A:S", [row])
+                row_number = 2
+                self._insert_queue_row(row)
+                for key, (old_row_number, old_row) in list(current.items()):
+                    current[key] = (old_row_number + 1, old_row)
                 idea_row_id = str(row_number)
             self.ideas()[comment.id] = (row_number, row)
         elif existing_idea:
@@ -383,6 +428,35 @@ class SheetStore:
             row_number = max((entry[0] for entry in processed.values()), default=1) + 1
             self._append("'_Processed'!A:E", [state])
         processed[comment.id] = (row_number, tuple(state[1:5]))
+
+    def _insert_queue_row(self, row: list[Any]) -> None:
+        """Insert a formatted row immediately below the queue header."""
+        sheet_id = self._sheet_id(QUEUE_SHEET)
+        requests = [{
+            "insertDimension": {
+                "range": {"sheetId": sheet_id, "dimension": "ROWS",
+                          "startIndex": 1, "endIndex": 2},
+                "inheritFromBefore": False,
+            }
+        }, {
+            "updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "ROWS",
+                          "startIndex": 1, "endIndex": 2},
+                "properties": {"pixelSize": 78}, "fields": "pixelSize",
+            }
+        }, {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 1,
+                          "endRowIndex": 2, "startColumnIndex": 0, "endColumnIndex": 10},
+                "cell": {"userEnteredFormat": {"verticalAlignment": "MIDDLE",
+                                                  "wrapStrategy": "WRAP"}},
+                "fields": "userEnteredFormat.verticalAlignment,userEnteredFormat.wrapStrategy",
+            }
+        }]
+        with_retry(lambda: self.service.spreadsheets().batchUpdate(
+            spreadsheetId=self.id, body={"requests": requests},
+        ).execute())
+        self._update(f"'{QUEUE_SHEET}'!A2:S", [row])
 
     def baselines(self, *, max_age_days: int = 7) -> list[Baseline]:
         rows = self._values("'_VideoBaseline'!A2:L")

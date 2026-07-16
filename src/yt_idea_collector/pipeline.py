@@ -38,7 +38,6 @@ class Pipeline:
         if not self.dry_run:
             self.store.ensure_layout()
         processed = self.store.processed()
-        existing_ideas = self.store.ideas()
         print("Fetching channel comments...", flush=True)
         comments = self.youtube.list_comments()
         cutoff = datetime.combine(self.backfill_start, time.min, tzinfo=timezone.utc)
@@ -94,8 +93,7 @@ class Pipeline:
                     score = score_idea(result, comment, baselines) if result.is_idea else None
                     ideas += int(result.is_idea)
                     if not self.dry_run:
-                        existing = (self.store.ideas().get(comment.id) if self.reprocess
-                                    else existing_ideas.get(comment.id))
+                        existing = self.store.ideas().get(comment.id)
                         self.store.write_result(comment, result, score, videos[comment.video_id], existing,
                                                 CLASSIFIER_VERSION)
                 print(f"Completed batch {batch_number}/{total_batches}.", flush=True)
