@@ -97,4 +97,4 @@ def test_deterministic_policy_keeps_concrete_video_requests(text, idea_type):
                "rationale": "Creator directed"}]
     result = GeminiClassifier(Client(output), "model").classify([make_comment(text)], {"v1": "A video"})
     assert result[0].is_idea is True
-    assert result[0].topic == "Team Fortress 2"
+    assert result[0].topic == "Team Fortress 2 Classified"

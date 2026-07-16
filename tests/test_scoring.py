@@ -39,11 +39,18 @@ def test_missing_topic_uses_low_confidence_fallback():
     assert "overall channel baseline" in result.rationale
 
 
-def test_topic_aliases_share_one_scoring_bucket():
-    rows = [video(1, "TF2"), video(2, "TF2 Classified"), video(3, "Team Fortress 2")]
+def test_team_fortress_two_aliases_share_one_scoring_bucket():
+    rows = [video(1, "TF2"), video(2, "Team Fortress 2"), video(3, "tf 2")]
     result = score_idea(classification("Team Fortress 2"), comment(), rows)
     assert result.confidence == "Medium"
     assert "3 comparable" in result.rationale
+
+
+def test_team_fortress_two_classified_has_a_separate_scoring_bucket():
+    rows = [video(1, "TF2"), video(2, "Team Fortress 2"), video(3, "TF2 Classified")]
+    result = score_idea(classification("Team Fortress 2 Classified"), comment(), rows)
+    assert result.confidence == "Low"
+    assert "overall channel baseline" in result.rationale
 
 
 def test_score_works_without_baseline():

@@ -39,7 +39,7 @@ RUN_HEADERS = ["Run Time", "Status", "Fetched", "Eligible", "Ideas", "Errors", "
 
 class SheetStore:
     _KNOWN_TOPICS = {
-        "Team Fortress 2", "Plants vs. Zombies",
+        "Team Fortress 2", "Team Fortress 2 Classified", "Plants vs. Zombies",
         "Plants vs. Zombies: Garden Warfare", "Plants vs. Zombies: Garden Warfare 2",
         "Splatoon", "Pokémon",
     }
