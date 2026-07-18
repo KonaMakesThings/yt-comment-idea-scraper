@@ -2,7 +2,7 @@
 
 Turn actionable YouTube comments into a private Google Sheets review queue. The collector reads public comments from one channel, asks Gemini to identify concrete creator-directed video ideas, and preserves your review status and notes across scheduled runs.
 
-It uses only official APIs. It does not scrape YouTube, read private analytics, estimate an idea's quality, or score ideas using channel performance.
+It uses only official APIs. It does not scrape YouTube.
 
 ## What it does
 
@@ -16,7 +16,7 @@ It uses only official APIs. It does not scrape YouTube, read private analytics, 
 
 The visible `Review Queue` columns are status, idea summary, original comment, inferred topic, source video, comment link, posted time, notes, and duplicate group. Less frequently used metadata is hidden to the right. The hidden `_Processed` and `_RunLog` tabs are managed by the collector.
 
-Upgrading from an older version is automatic: existing queue rows, statuses, notes, and original comments are migrated to the new score-free layout. Obsolete score columns and the `_VideoBaseline` tab are removed during the next normal run. The older `Ideas` tab, if present, is retained as a hidden backup.
+Upgrading from an older version is automatic: existing queue rows, statuses, notes, and original comments are migrated to the new score-free layout.
 
 ## Requirements
 
@@ -80,8 +80,6 @@ Add these GitHub Actions repository secrets under **Settings > Secrets and varia
 | `GEMINI_API_KEY` | Gemini API key |
 | `YOUTUBE_CHANNEL_ID` | Channel ID whose public comments are read |
 | `GOOGLE_SHEET_ID` | Destination spreadsheet ID |
-
-`SHEETS_REFRESH_TOKEN` is also accepted and takes precedence over `GOOGLE_REFRESH_TOKEN`. This supports existing installations without requiring secrets to be recreated.
 
 Optional repository variables:
 
